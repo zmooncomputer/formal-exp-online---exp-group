@@ -602,10 +602,11 @@ def load_big_topics_from_excel():
     print(f"读取到的所有主题 (scale_name): {actual_topics}")
     
  # --- 插入开始 ---
-   # 1. 强制将 scale_name 转为字符串
-    lib_df["scale_name"] = lib_df["scale_name"].astype(str)
-  # 2. 去掉开头和结尾的所有空格、换行符、制表符
-    lib_df["scale_name"] = lib_df["scale_name"].str.strip()
+# 1. 强制转字符串并去掉前后空格
+    lib_df["scale_name"] = lib_df["scale_name"].astype(str).str.strip()
+
+# 2. 关键一步：去掉字符串开头可能存在的单引号
+    lib_df["scale_name"] = lib_df["scale_name"].str.lstrip("'")
 # 3. (可选但推荐) 移除字符串内部可能存在的特殊空白符
     lib_df["scale_name"] = lib_df["scale_name"].str.replace(r'\s+', '', regex=True)
 
