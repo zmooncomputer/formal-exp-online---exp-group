@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI交互 - {{ topic_category }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', 'Segoe UI', Arial, sans-serif; background: #e8e8e8; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .container { width: 100%; max-width: 1600px; background: #f5f5f5; border-radius: 12px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); overflow: hidden; }
+        .chat-interface { height: 90vh; max-height: 900px; flex-direction: column; display: flex; }
+        .chat-header { background: #b8b8b8; color: #4a4a4a; padding: 20px; text-align: center; }
+        .chat-header h2 { font-size: 24px; margin-bottom: 5px; }
+        .chat-header p { font-size: 14px; opacity: 0.85; }
+        .round-counter { text-align: center; padding: 10px; background: #f0f0e8; color: #7a7a5a; font-weight: bold; font-size: 14px; }
+        .chat-main { display: flex; flex: 1; overflow: hidden; }
+        .chat-side { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #d0d0d0; }
+        .chat-side:last-child { border-right: none; }
+        .side-header { padding: 15px; text-align: center; font-weight: bold; font-size: 16px; border-bottom: 1px solid #d0d0d0; }
+        .side-left .side-header { background: #d4e3ed; color: #5a7a8f; }
+        .side-center .side-header { background: #e8e8d4; color: #7a7a5a; }
+        .side-right .side-header { background: #edd4e3; color: #8f5a7a; }
+        .messages-container { flex: 1; overflow-y: auto; padding: 20px; background: #fafafa; }
+        .message { margin-bottom: 20px; padding: 15px 20px; border-radius: 8px; line-height: 1.6; animation: fadeIn 0.5s ease; white-space: pre-wrap; }
+        .message.ai { background: #fff; border-left: 3px solid #999; }
+        .side-left .message.ai { background: #f0f5f8; border-left: 3px solid #8fa3b0; }
+        .side-center .message.ai { background: #f8f8f0; border-left: 3px solid #a3a38f; }
+        .side-right .message.ai { background: #f8f0f5; border-left: 3px solid #b08fa3; }
+        .message.user { background: #f5f3e8; border-left: 3px solid #b8a67d; font-style: italic; }
+        .message.user::before { content: "👤 您说："; display: block; font-size: 12px; color: #8a7a5a; font-weight: bold; margin-bottom: 5px; font-style: normal; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .loading { display: flex; gap: 5px; padding: 15px 20px; align-items: center; }
+        .loading span { width: 8px; height: 8px; border-radius: 50%; background: #999; animation: bounce 1.4s infinite ease-in-out both; }
+        .loading span:nth-child(1) { animation-delay: -0.32s; }
+        .loading span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+        .chat-input-area { border-top: 1px solid #d0d0d0; padding: 20px; background: #fafafa; }
+        .input-container { display: flex; gap: 10px; max-width: 1400px; margin: 0 auto; }
+        .chat-input { flex: 1; padding: 15px 20px; border: 1px solid #d0d0d0; border-radius: 20px; font-size: 16px; outline: none; transition: border-color 0.3s; background: #fff; }
+        .chat-input:focus { border-color: #a8a8a8; }
+        .send-btn { padding: 15px 35px; background: #b8b8b8; color: #4a4a4a; border: none; border-radius: 20px; cursor: pointer; font-size: 16px; font-weight: bold; transition: all 0.3s; }
+        .send-btn:hover:not(:disabled) { background: #a8a8a8; transform: translateY(-1px); }
+        .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .progress-info { text-align: center; padding: 10px; background: #e8e8e8; color: #4a4a4a; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="progress-info">
+            话题 {{ topic_idx + 1 }}/{{ total_topics }}: {{ topic_category }} | 当前问题: {{ topic.question }}
+        </div>
+        
+        <div class="chat-interface">
+            <div class="chat-header">
+                <h2 id="currentTopic">{{ topic.question }}</h2>
+                <p>左侧和右侧展示对立观点，中间提供思考引导，请仔细阅读并输入您的想法</p>
+            </div>
+            <div class="round-counter">
+                对话轮次: <span id="roundCounter">0</span> / {{ max_rounds }}
+            </div>
+            <div class="chat-main">
+                <div class="chat-side side-left">
+                    <div class="side-header" id="leftHeader">{{ topic.left_stance }}</div>
+                    <div class="messages-container" id="leftMessages"></div>
+                </div>
+                <div class="chat-side side-center">
+                    <div class="side-header" id="centerHeader">{{ topic.center_stance }}</div>
+                    <div class="messages-container" id="centerMessages"></div>
+                </div>
+                <div class="chat-side side-right">
+                    <div class="side-header" id="rightHeader">{{ topic.right_stance }}</div>
+                    <div class="messages-container" id="rightMessages"></div>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <div class="input-container">
+                    <input type="text" id="userInput" class="chat-input" placeholder="请输入您的观点或困惑..." disabled>
+                    <button id="sendBtn" class="send-btn" disabled>发送</button>
+                    <button id="nextBtn" class="send-btn" style="display:none; background: #5a7a8f; color: white;">已阅读，进入下一步</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const MAX_ROUNDS = {{ max_rounds }};
+        let currentRound = 0;
+        let isFinished = false;
+
+        const leftMessages = document.getElementById('leftMessages');
+        const centerMessages = document.getElementById('centerMessages');
+        const rightMessages = document.getElementById('rightMessages');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const roundCounter = document.getElementById('roundCounter');
+
+        async function startChat() {
+            userInput.disabled = true;
+            sendBtn.disabled = true;
+            showLoading();
+            
+            try {
+                const response = await fetch('/api/ai/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({})
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    removeLoading();
+                    currentRound = data.round;
+                    roundCounter.textContent = currentRound;
+                    addMessage('left', data.left_response, 'ai');
+                    addMessage('center', data.center_response, 'ai');
+                    addMessage('right', data.right_response, 'ai');
+                    userInput.disabled = false;
+                    sendBtn.disabled = false;
+                    userInput.focus();
+                }
+            } catch (error) {
+                removeLoading();
+                console.error('启动对话失败:', error);
+            }
+        }
+
+        async function sendMessage() {
+    const message = userInput.value.trim();
+    if (!message || isFinished) return;
+    
+    userInput.disabled = true;
+    sendBtn.disabled = true;
+    const userMessage = userInput.value;
+    userInput.value = '';
+    
+    addMessage('left', userMessage, 'user');
+    addMessage('center', userMessage, 'user');
+    addMessage('right', userMessage, 'user');
+    
+    showLoading();
+    
+    try {
+        const response = await fetch('/api/ai/send', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message: userMessage})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            removeLoading();
+            addMessage('left', data.left_response, 'ai');
+            addMessage('center', data.center_response, 'ai');
+            addMessage('right', data.right_response, 'ai');
+            currentRound = data.round;
+            roundCounter.textContent = currentRound;
+            
+            // --- 修改后的结束逻辑 ---
+            if (data.is_finished) {
+                isFinished = true;
+                
+                // 1. 隐藏旧的输入控件
+                userInput.style.display = 'none';
+                sendBtn.style.display = 'none';
+                
+                // 2. 显示“继续”按钮
+                nextBtn.style.display = 'block';
+                
+                // 3. 绑定手动跳转事件
+                nextBtn.onclick = function() {
+                    window.location.href = (data.redirect || '/experiment');
+                };
+            } else {
+                userInput.disabled = false;
+                sendBtn.disabled = false;
+                userInput.focus();
+            }
+            // ------------------------
+        }
+    } catch (error) {
+        removeLoading();
+        console.error('发送消息失败:', error);
+        userInput.disabled = false;
+        sendBtn.disabled = false;
+    }
+}
+
+        function addMessage(side, text, type) {
+            let container;
+            if (side === 'left') container = leftMessages;
+            else if (side === 'center') container = centerMessages;
+            else container = rightMessages;
+            
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${type}`;
+            messageEl.textContent = text;
+            container.appendChild(messageEl);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showLoading() {
+            ['left', 'center', 'right'].forEach(side => {
+                let container;
+                if (side === 'left') container = leftMessages;
+                else if (side === 'center') container = centerMessages;
+                else container = rightMessages;
+                
+                const loadingEl = document.createElement('div');
+                loadingEl.className = 'loading';
+                loadingEl.id = `loading-${side}`;
+                loadingEl.innerHTML = '<span></span><span></span><span></span>';
+                container.appendChild(loadingEl);
+                container.scrollTop = container.scrollHeight;
+            });
+        }
+
+        function removeLoading() {
+            ['left', 'center', 'right'].forEach(side => {
+                const loadingEl = document.getElementById(`loading-${side}`);
+                if (loadingEl) loadingEl.remove();
+            });
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !userInput.disabled) {
+                sendMessage();
+            }
+        });
+
+        startChat();
+    </script>
+</body>
+</html>

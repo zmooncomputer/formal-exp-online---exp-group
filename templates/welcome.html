@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+
+{% block content %}
+    <span class="icon-large">👋</span>
+    <h1>欢迎参加实验</h1>
+    
+    <p>您好！感谢您参与本次关于<b>社会议题与个人观点</b>的认知研究。</p>
+    
+    <div style="text-align: left; background: #f9f9f9; padding: 25px; border-radius: 8px; margin: 30px 0;">
+        <p style="margin-top: 0; font-weight: bold; color: var(--text-main);">实验流程说明：</p>
+        <ul style="margin: 0; padding-left: 20px; color: var(--text-sub);">
+            <li style="margin-bottom: 8px;">实验包含 <b>3 个不同的话题</b>讨论。</li>
+            <li style="margin-bottom: 8px;">每个话题流程：<b>观点预评估（您认为自己在整体人群中处于哪个位置？）→ 简单的互动讨论 → 观点后评估</b>。</li>
+            <li style="margin-bottom: 8px;">整个过程预计耗时 45-60 分钟。</li>
+            <li>您的回答将严格匿名，仅用于学术统计。</li>
+        </ul>
+    </div>
+    
+    <p style="font-size: 0.9em; color: #b2bec3;">请勿刷新浏览器，以免进度丢失。</p>
+
+    <form action="/start" method="POST" id="startForm">
+        <button type="submit" class="btn">开始实验</button>
+    </form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('startForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    fetch('/start', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = data.redirect || '/experiment';
+        }
+    });
+});
+</script>
+{% endblock %}

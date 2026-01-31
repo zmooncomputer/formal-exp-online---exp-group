@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>问卷填写 - {{ topic_category }} (B组)</title>
+    <style>
+        :root { --primary: #2980b9; --secondary: #2c3e50; --accent: #e67e22; --bg: #f5f6fa; --card-bg: #ffffff; }
+        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background-color: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #app { width: 90%; max-width: 800px; background: var(--card-bg); padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); position: relative; z-index: 10; }
+        #particleCanvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1; }
+        .btn { padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; transition: all 0.2s; margin-top: 20px; font-weight: bold; }
+        .btn-primary { background: var(--primary); color: white; }
+        .scale-header { background: var(--primary); color: white; padding: 12px 20px; border-radius: 6px; margin-bottom: 25px; }
+        .question-box { background: #f8f9fa; border-left: 5px solid var(--primary); padding: 20px; margin-bottom: 25px; }
+        #barometerCanvas { width: 100%; height: 320px; margin-bottom: 10px; }
+        .hidden { display: none !important; }
+        .text-center { text-align: center; }
+        .baro-feedback-container { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin: 25px 0 15px 0; }
+        .feedback-card { flex: 1; background: white; border-radius: 10px; padding: 15px; text-align: center; min-height: 80px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .card-predict { border: 2px solid #3498db; color: #2980b9; }
+        .card-actual { border: 2px solid #e74c3c; color: #c0392b; }
+        .card-label { font-size: 0.85em; color: #7f8c8d; margin-bottom: 8px; }
+        .card-value { font-size: 1.6em; font-weight: bold; }
+        .diff-box { display: flex; flex-direction: column; justify-content: center; align-items: center; min-width: 90px; }
+        .diff-label { font-size: 0.75em; color: #95a5a6; }
+        .diff-value { font-size: 1.2em; font-weight: bold; color: #7f8c8d; border-bottom: 2px solid #eee; }
+        .eval-summary { text-align: center; color: #2c3e50; font-size: 1.1em; border-top: 1px solid #eee; padding-top: 15px; margin-top: 10px; }
+        .radio-group label { display: block; padding: 12px; cursor: pointer; border: 1px solid #eee; margin-bottom: 5px; border-radius: 6px; }
+        .radio-group label:hover { background: #f0f0f0; }
+        .radio-group input[type="radio"] { margin-right: 10px; }
+        .progress-info { text-align: center; color: #7f8c8d; margin-bottom: 20px; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+<canvas id="particleCanvas"></canvas>
+<div id="app">
+    <div class="progress-info">
+        <span>话题 {{ topic_idx + 1 }}/{{ total_topics }}: {{ topic_category }}</span> | 
+        <span>{{ '后评估' if not is_pre else '预评估' }}</span> (B组)
+    </div>
+    
+    <div id="view-question">
+        <div id="q-header" class="scale-header"></div>
+        <div class="question-box">
+            <p id="q-prompt" style="color:#7f8c8d; font-size: 0.9em;"></p>
+            <h3 id="q-text" style="margin:0;"></h3>
+        </div>
+        <div class="radio-group" id="q-options"></div>
+        <div class="text-center"><button class="btn btn-primary" onclick="exp.submitAnswer()">下一题</button></div>
+    </div>
+
+    <div id="view-barometer" class="hidden">
+        <h2 id="baro-title" style="text-align:center; color: var(--primary); margin-bottom:10px;">📍 位置对比</h2>
+        <canvas id="barometerCanvas"></canvas>
+        <div style="position:relative; height: 30px; margin-top: -10px;">
+            <span id="baro-left" style="position:absolute; left:0; font-weight:bold; color:#7f8c8d;"></span>
+            <span id="baro-right" style="position:absolute; right:0; font-weight:bold; color:#7f8c8d;"></span>
+        </div>
+        
+        <div id="baro-slider-area" class="text-center" style="margin-top: 20px;">
+            <input type="range" id="baro-slider" style="width:100%" step="0.01" oninput="exp.updateBarometer(this.value)">
+            <p>您当前预测：全国前 <b id="baro-percentile" style="color:#e74c3c;"></b></p>
+        </div>
+
+        <div id="baro-truth-feedback" class="hidden">
+            <div class="baro-feedback-container">
+                <div class="feedback-card card-predict">
+                    <div class="card-label">您的预测位置</div>
+                    <div class="card-value">第 <span id="predicted-pct"></span> 位</div>
+                </div>
+                
+                <div class="diff-box">
+                    <div class="diff-label">偏差值</div>
+                    <div id="pct-diff-value" class="diff-value"></div>
+                </div>
+
+                <div class="feedback-card card-actual">
+                    <div class="card-label">您的实际位置</div>
+                    <div class="card-value">第 <span id="actual-pct"></span> 位</div>
+                </div>
+            </div>
+            <div id="position-diff-text" class="eval-summary"></div>
+        </div>
+
+        <div class="text-center"><button id="btn-baro-confirm" class="btn btn-primary" onclick="exp.handleBarometerConfirmation()">确认位置</button></div>
+    </div>
+</div>
+
+<script>
+const DATA_LIB = {{ questionnaire_data | safe }};
+const IS_PRE = {{ 'true' if is_pre else 'false' }};
+
+const initParticles = () => {
+    const canvas = document.getElementById('particleCanvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+    window.addEventListener('resize', resize); resize();
+    class Particle {
+        constructor(x, y, color) { this.x = x; this.y = y; this.color = color; this.size = Math.random()*5+2; this.speedX = Math.random()*6-3; this.speedY = Math.random()*6-3; this.life = 1.0; }
+        update() { this.x += this.speedX; this.y += this.speedY; this.life -= 0.02; }
+        draw() { ctx.fillStyle = this.color; ctx.globalAlpha = Math.max(0, this.life); ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); }
+    }
+    window.spawnParticles = (x, y, color) => { for(let i=0; i<15; i++) particles.push(new Particle(x, y, color)); };
+    function animate() { ctx.clearRect(0,0,canvas.width,canvas.height); particles = particles.filter(p=>p.life>0); particles.forEach(p=>{p.update();p.draw();}); requestAnimationFrame(animate); }
+    animate();
+};
+initParticles();
+
+class Experiment {
+    constructor(data) {
+        this.data = data;
+        this.scaleOrder = Object.keys(data).sort(() => Math.random() - 0.5);
+        this.scaleIdx = 0; this.qIdx = 0; this.results = [];
+        this.subjectId = "SUB_" + Math.floor(Date.now() / 1000);
+        this.baroState = 'guessing'; 
+    }
+
+    showView(id) { 
+        document.querySelectorAll('#app > div').forEach(el => {
+            if (el.id && el.id.startsWith('view-')) el.classList.add('hidden');
+        }); 
+        document.getElementById(id).classList.remove('hidden'); 
+    }
+
+    start() { this.showView('view-question'); this.renderQuestion(); }
+
+    renderQuestion() {
+        this.currentScaleName = this.scaleOrder[this.scaleIdx];
+        const q = this.data[this.currentScaleName][this.qIdx];
+        document.getElementById('q-header').innerText = `当前维度: ${this.currentScaleName} (${this.scaleIdx + 1}/${this.scaleOrder.length})`;
+        document.getElementById('q-prompt').innerText = q.question_prompt;
+        document.getElementById('q-text').innerText = q.text;
+        const optContainer = document.getElementById('q-options');
+        optContainer.innerHTML = '';
+        q.options.forEach(opt => {
+            const div = document.createElement('div');
+            div.innerHTML = `<label><input type="radio" name="ans" value="${opt.value}"> ${opt.label}</label>`;
+            optContainer.appendChild(div);
+        });
+    }
+
+    submitAnswer() {
+        const checked = document.querySelector('input[name="ans"]:checked');
+        if(!checked) { alert("请选择一个选项"); return; }
+        this.results.push({
+            scale_name: this.currentScaleName, 
+            question_id: this.data[this.currentScaleName][this.qIdx].id,
+            personal_score: parseFloat(checked.value), 
+            timestamp: new Date().toLocaleString()
+        });
+
+        if(this.qIdx < this.data[this.currentScaleName].length - 1) {
+            this.qIdx++; this.renderQuestion();
+        } else {
+            // 新流程：后测不再测量barometer，直接提交问卷
+            if (!IS_PRE) {
+                this.submitSurvey();
+            } else {
+                this.initBarometer();
+            }
+        }
+    }
+
+    initBarometer() {
+        this.baroState = 'guessing';
+        this.showView('view-barometer');
+        const qData = this.data[this.currentScaleName][0];
+        this.currentEvalConfig = qData.eval_config;
+        document.getElementById('baro-title').innerText = "📍 " + this.currentScaleName + " · 位置对比";
+        document.getElementById('baro-left').innerText = qData.left_label;
+        document.getElementById('baro-right').innerText = qData.right_label;
+        document.getElementById('baro-slider-area').classList.remove('hidden');
+        document.getElementById('baro-truth-feedback').classList.add('hidden');
+        document.getElementById('btn-baro-confirm').innerText = "确认位置";
+        
+        const slider = document.getElementById('baro-slider');
+        slider.min = qData.kde_data.min; slider.max = qData.kde_data.max; slider.value = qData.kde_data.mean;
+        this.currentKDE = qData.kde_data;
+        this.currentRawScores = qData.raw_scores;
+        this.updateBarometer(slider.value);
+    }
+
+    getYOnCurve(x, kde) {
+        if (x <= kde.x[0]) return kde.y[0];
+        if (x >= kde.x[kde.x.length-1]) return kde.y[kde.y.length-1];
+        for(let i=0; i < kde.x.length - 1; i++) {
+            if(x >= kde.x[i] && x <= kde.x[i+1]) {
+                const t = (x - kde.x[i]) / (kde.x[i+1] - kde.x[i]);
+                return kde.y[i] + t * (kde.y[i+1] - kde.y[i]);
+            }
+        }
+        return 0;
+    }
+
+    updateBarometer(val) {
+        const canvas = document.getElementById('barometerCanvas');
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width = canvas.offsetWidth;
+        const h = canvas.height = canvas.offsetHeight;
+        const pad = 60;
+        const kde = this.currentKDE;
+        const mapX = (v) => ((v - kde.min) / (kde.max - kde.min)) * (w - 2*pad) + pad;
+        const maxY = Math.max(...kde.y);
+        const mapY = (v) => h - pad - (v / maxY) * (h - 2*pad);
+
+        ctx.clearRect(0,0,w,h);
+        
+        ctx.beginPath(); ctx.moveTo(mapX(kde.x[0]), mapY(kde.y[0]));
+        for(let i=1; i<kde.x.length; i++) ctx.lineTo(mapX(kde.x[i]), mapY(kde.y[i]));
+        ctx.strokeStyle = '#bdc3c7'; ctx.lineWidth = 3; ctx.stroke();
+        ctx.fillStyle = 'rgba(189, 195, 199, 0.1)'; ctx.fill();
+
+        const drawMarker = (xVal, color, label, labelBelow) => {
+            const yVal = this.getYOnCurve(xVal, kde);
+            const px = mapX(xVal); const py = mapY(yVal);
+            ctx.beginPath(); ctx.setLineDash([5, 5]);
+            ctx.moveTo(px, py); ctx.lineTo(px, h-pad);
+            ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = color; ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.font = "bold 14px Microsoft YaHei";
+            ctx.textAlign = "center";
+            const textY = labelBelow ? py + 25 : py - 15;
+            ctx.fillText(label, px, textY);
+        };
+
+        drawMarker(parseFloat(val), '#e74c3c', "预期位置", false);
+
+        if(this.baroState === 'revealed') {
+            drawMarker(this.fakeActualScore, '#3498db', "实际位置", true);
+        }
+
+        const pct = (this.currentRawScores.filter(s => s < val).length / this.currentRawScores.length * 100).toFixed(1);
+        document.getElementById('baro-percentile').innerText = pct + '%';
+        this.currentBaroVal = val; this.currentBaroPct = pct;
+    }
+
+    calculateActualScore() {
+        const scores = this.results.filter(r => r.scale_name === this.currentScaleName).map(r => r.personal_score);
+        return scores.reduce((a, b) => a + b, 0) / scores.length;
+    }
+
+    handleBarometerConfirmation() {
+        if(this.baroState === 'guessing') {
+            this.baroState = 'revealed';
+            
+            // --- 正向伪反馈逻辑 ---
+            const predictedPct = parseFloat(this.currentBaroPct);
+            // 随机生成偏差 -1.5% 到 1.5% 
+            const offset = (Math.random() * 3 - 1.5).toFixed(1); 
+            let actualPct = (predictedPct + parseFloat(offset));
+            actualPct = Math.max(0.1, Math.min(99.9, actualPct)).toFixed(1);
+            const diff = Math.abs(parseFloat(actualPct) - predictedPct).toFixed(1);
+
+            // 推算用于 Canvas 绘图的分数
+            const range = this.currentKDE.max - this.currentKDE.min;
+            this.fakeActualScore = parseFloat(this.currentBaroVal) + (parseFloat(offset) / 100 * range);
+
+            document.getElementById('predicted-pct').innerText = predictedPct.toFixed(1) + '%';
+            document.getElementById('actual-pct').innerText = actualPct + '%';
+            document.getElementById('pct-diff-value').innerText = "±" + diff + "%";
+            
+            document.getElementById('position-diff-text').innerHTML = "✨ <b style='color:#27ae60;'>您的自我认知非常准确！</b> 实际数据与您的预测高度一致。";
+            
+            document.getElementById('baro-slider-area').classList.add('hidden');
+            document.getElementById('baro-truth-feedback').classList.remove('hidden');
+            document.getElementById('btn-baro-confirm').innerText = "继续";
+            this.updateBarometer(this.currentBaroVal);
+        } else {
+            this.results.forEach(r => { 
+                if(r.scale_name === this.currentScaleName) { 
+                    r.self_marked_pos = this.currentBaroVal; 
+                    r.self_marked_percentile = this.currentBaroPct; 
+                } 
+            });
+            this.submitSurvey();
+        }
+    }
+
+    async submitSurvey() {
+        fetch('/api/survey/submit', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({results: this.results})
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = data.redirect || '/experiment';
+            }
+        });
+    }
+}
+
+const exp = new Experiment(DATA_LIB);
+exp.start();
+</script>
+</body>
+</html>

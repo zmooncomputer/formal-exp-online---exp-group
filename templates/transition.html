@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+
+{% block content %}
+    <span class="icon-large">✨</span>
+    <h2>本话题已完成</h2>
+    
+    <p>感谢您的作答。请稍作休息，我们将进入下一个议题。</p>
+    
+    <div style="margin: 40px 0; padding: 30px; border: 1px dashed #dcdcdc; border-radius: 8px;">
+        <p style="margin: 0; font-size: 0.9em; color: #999; text-transform: uppercase; letter-spacing: 1px;">Next Topic</p>
+        <h3 style="margin: 15px 0 0 0; color: var(--text-main); font-size: 1.4em;">
+            " {{ next_topic_name }} "
+        </h3>
+    </div>
+
+    <a href="#" class="btn" id="continueBtn">继续下一话题</a>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('continueBtn').addEventListener('click', function(e) {
+    e.preventDefault();
+    fetch('/api/transition/next', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = data.redirect || '/experiment';
+        }
+    });
+});
+</script>
+{% endblock %}
