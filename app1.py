@@ -1230,18 +1230,26 @@ def download_data():
         download_name=filename
     )
 
-if __name__ == '__main__':
+with app.app_context():
     init_all_data()
-    import os
-    # 核心：从系统环境获取端口，默认5000
-    port = int(os.environ.get("PORT", 5000)) 
-    app.run(host='0.0.0.0', port=port)
     
+    # 诊断打印：确保启动时数据不是空的
+    print(f"--- 启动数据校验 ---")
+    print(f"QUESTIONNAIRE_LIBRARY 包含话题: {list(QUESTIONNAIRE_LIBRARY.keys())}")
+    print(f"TOPICS_CONFIG 包含话题: {list(TOPICS_CONFIG.keys())}")
+    
+    # 如果此时还是空的，强制解析一次 Excel
+    if not QUESTIONNAIRE_LIBRARY or not TOPICS_CONFIG:
+        print("警告：缓存为空，正在强制解析 Excel...")
+        TOPICS_CONFIG = load_big_topics_from_excel()
+        # 注意：确保你的 load_big_topics_from_excel 也能填充 QUESTIONNAIRE_LIBRARY
+        # 或者在这里补充加载问卷的逻辑
+
+if __name__ == '__main__':
+    # 这里仅保留本地直接运行时的启动逻辑
+    port = int(os.environ.get("PORT", 5003)) # 本地开发建议用 5003
     print("=" * 60)
-    print("实验组整合应用")
+    print("实验组整合应用 - 本地开发模式启动")
+    print(f"访问地址: http://localhost:{port}")
     print("=" * 60)
-    print("启动服务器...")
-    print("请在浏览器中访问: http://localhost:5003")
-    print("按 Ctrl+C 停止服务器\n")
-    # 使用不同端口避免冲突
-    app.run(debug=True, host='0.0.0.0', port=5003)
+    app.run(debug=True, host='0.0.0.0', port=port)
