@@ -601,18 +601,15 @@ def load_big_topics_from_excel():
     actual_topics = lib_df["scale_name"].unique().tolist()
     print(f"读取到的所有主题 (scale_name): {actual_topics}")
     
-    target_topic = "3法治观念"
-    if target_topic not in actual_topics:
-        print(f"❌ 警告：未找到目标主题 '{target_topic}'")
-        # 检查是否存在带空格或特殊字符的情况
-        for t in actual_topics:
-            if target_topic in str(t):
-                print(f"  --> 发现相似主题: '{t}' (包含不可见字符或空格)")
-    else:
-        print(f"✅ 成功找到目标主题: '{target_topic}'")
-    print("-------------------------")
-    # === 新增诊断代码结束 ===
-    lib_df["scale_name"] = lib_df["scale_name"].astype(str).str.strip()
+ # --- 插入开始 ---
+   # 1. 强制将 scale_name 转为字符串
+    lib_df["scale_name"] = lib_df["scale_name"].astype(str)
+  # 2. 去掉开头和结尾的所有空格、换行符、制表符
+    lib_df["scale_name"] = lib_df["scale_name"].str.strip()
+# 3. (可选但推荐) 移除字符串内部可能存在的特殊空白符
+    lib_df["scale_name"] = lib_df["scale_name"].str.replace(r'\s+', '', regex=True)
+
+    grouped = lib_df.groupby("scale_name")
     grouped = lib_df.groupby("scale_name")
     
     for scale_name, df in grouped:
