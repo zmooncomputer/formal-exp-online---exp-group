@@ -654,7 +654,8 @@ def load_big_topics_from_excel():
             pickle.dump(topics_config, f)
     except Exception as e:
         print(f"写入缓存失败: {e}")
-
+    global QUESTIONNAIRE_LIBRARY
+    QUESTIONNAIRE_LIBRARY = topics_config
     return topics_config
 
 
@@ -1245,11 +1246,28 @@ with app.app_context():
         # 注意：确保你的 load_big_topics_from_excel 也能填充 QUESTIONNAIRE_LIBRARY
         # 或者在这里补充加载问卷的逻辑
 
+# ============================================================
+# 启动初始化 (确保在 Render/Gunicorn 环境下也能加载数据)
+# ============================================================
+
+# --- 核心修改：将初始化从 if main 中提取到全局 ---
+# 这样 Gunicorn 启动时也会执行数据加载
+print("正在执行全局初始化...")
+init_all_data()
+
+# 诊断补救：如果 init_all_data 没读到缓存，强制解析 Excel
+if not QUESTIONNAIRE_LIBRARY or not TOPICS_CONFIG:
+    print("警告：缓存为空，正在强制解析 Excel 并填充库...")
+    # 调用你的解析函数
+    TOPICS_CONFIG = load_big_topics_from_excel()
+    # 强制让 QUESTIONNAIRE_LIBRARY 也不为空（根据你的代码逻辑，这里可能需要确保解析函数填充了它）
+    if not QUESTIONNAIRE_LIBRARY:
+        # 如果你的解析函数没填这个变量，这里可以手动补一下或者调用相关逻辑
+        print("注意：QUESTIONNAIRE_LIBRARY 仍为空，请检查解析逻辑")
+
+print(f"初始化完成！当前可用主题: {list(QUESTIONNAIRE_LIBRARY.keys())}")
+
+# --- 启动块只保留运行命令 ---
 if __name__ == '__main__':
-    # 这里仅保留本地直接运行时的启动逻辑
-    port = int(os.environ.get("PORT", 5003)) # 本地开发建议用 5003
-    print("=" * 60)
-    print("实验组整合应用 - 本地开发模式启动")
-    print(f"访问地址: http://localhost:{port}")
-    print("=" * 60)
+    port = int(os.environ.get("PORT", 5003))
     app.run(debug=True, host='0.0.0.0', port=port)
