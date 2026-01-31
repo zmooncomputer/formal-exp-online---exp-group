@@ -654,7 +654,8 @@ def load_big_topics_from_excel():
             pickle.dump(topics_config, f)
     except Exception as e:
         print(f"写入缓存失败: {e}")
-    global QUESTIONNAIRE_LIBRARY
+    global QUESTIONNAIRE_LIBRARY, TOPICS_CONFIG
+    TOPICS_CONFIG = topics_config
     QUESTIONNAIRE_LIBRARY = topics_config
     return topics_config
 
