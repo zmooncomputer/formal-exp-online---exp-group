@@ -890,16 +890,35 @@ def start():
 
 @app.route('/experiment')
 def experiment():
-    """实验主页面 - 核心修改点"""
+    """实验主页面 - 增加强制清洗与诊断打印"""
     session_data = get_session_data()
     phase = session_data.get('current_phase', 'welcome')
     
+    # 诊断 1: 打印 session 里存的原始值
+    raw_category = session_data.get('current_topic_category', '')
+    print(f"DEBUG: Session中的原始主题 -> [{raw_category}]")
+    print(f"DEBUG: 可用的字典Keys -> {list(QUESTIONNAIRE_LIBRARY.keys())}")
+
+    # 核心修复点：强制对 session 中的主题进行清洗，去掉引号、空格和换行
+    topic_category = str(raw_category).strip().replace('"', '').replace("'", "")
+    
     if phase == 'pre_survey' or phase == 'post_survey':
-        topic_category = session_data['current_topic_category']
         questionnaire_all = QUESTIONNAIRE_LIBRARY
         
+        # 诊断 2: 再次确认清洗后的值是否在库中
         if topic_category not in questionnaire_all:
-            return f"Error: Topic {topic_category} not found in Excel", 500
+            # 如果还是找不到，尝试遍历匹配（终极兼容逻辑）
+            found_key = None
+            for key in questionnaire_all.keys():
+                if topic_category in key or key in topic_category:
+                    found_key = key
+                    break
+            
+            if found_key:
+                topic_category = found_key
+            else:
+                # 依然找不到时，在报错信息里把前后的“不可见字符”也显示出来
+                return f"Error: Topic [{topic_category}] not found in Excel. Available: {list(questionnaire_all.keys())}", 500
             
         questionnaire_data = {topic_category: questionnaire_all[topic_category]}
         session_data['questionnaire_data'] = questionnaire_data
@@ -908,25 +927,31 @@ def experiment():
         is_pre = (phase == 'pre_survey')
         json_data = json.dumps(questionnaire_data, ensure_ascii=False)
         
-        # 【关键修改】：这里指向新的实验组 HTML 模板
         return render_template('questionnaire_treatment.html', 
                              questionnaire_data=json_data,
                              topic_category=topic_category,
                              is_pre=is_pre,
                              topic_idx=session_data['current_topic_idx'],
                              total_topics=len(session_data['topic_order']),
-                             is_control=False) # 标记为非对照组
+                             is_control=False)
     
     elif phase == 'ai_chat':
-        topic_category = session_data['current_topic_category']
-        # --- 修改：通过映射表获取真正的子题 ID ---
+        # 同样对 AI 阶段的主题进行清洗
+        topic_category = str(session_data['current_topic_category']).strip().replace('"', '').replace("'", "")
+        
+        # 兼容性检查
+        if topic_category not in TOPICS_CONFIG:
+            for key in TOPICS_CONFIG.keys():
+                if topic_category in key or key in topic_category:
+                    topic_category = key
+                    break
+
         chosen_indices = session_data.get('subtopic_indices_map', {}).get(topic_category, [])
         current_ai_idx = session_data.get('ai_subtopic_idx', 0)
         
         real_topic_id = chosen_indices[current_ai_idx] if current_ai_idx < len(chosen_indices) else chosen_indices[0]
         topics = TOPICS_CONFIG[topic_category]['topics']
         topic = topics[real_topic_id]
-        # ------------------------------------------
         
         return render_template('ai_chat.html',
                              topic=topic,
@@ -934,24 +959,6 @@ def experiment():
                              max_rounds=MAX_ROUNDS,
                              topic_idx=session_data['current_topic_idx'],
                              total_topics=len(session_data['topic_order']))
-    
-    elif phase == 'transition':
-        # 过渡页 (逻辑不变)
-        topic_order = session_data['topic_order']
-        current_idx = session_data['current_topic_idx']
-        if current_idx + 1 < len(topic_order):
-            next_topic = topic_order[current_idx + 1]
-            return render_template('transition.html', next_topic_name=next_topic)
-        else:
-            session_data['current_phase'] = 'end'
-            save_session_data(session_data)
-            return render_template('end.html')
-    
-    elif phase == 'end':
-        return render_template('end.html')
-    
-    else:
-        return render_template('welcome.html', group='experimental_real')
 
 @app.route('/api/survey/submit', methods=['POST'])
 def submit_survey():
