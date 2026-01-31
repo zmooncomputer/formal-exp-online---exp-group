@@ -596,6 +596,23 @@ def load_big_topics_from_excel():
     topics_config = {}
     
     # --- 优化点 3: 使用 groupby 替代循环过滤 ---
+    print("--- RENDER DEBUG INFO ---")
+    print(f"Excel文件中的所有列名: {lib_df.columns.tolist()}")
+    actual_topics = lib_df["scale_name"].unique().tolist()
+    print(f"读取到的所有主题 (scale_name): {actual_topics}")
+    
+    target_topic = "3法治观念"
+    if target_topic not in actual_topics:
+        print(f"❌ 警告：未找到目标主题 '{target_topic}'")
+        # 检查是否存在带空格或特殊字符的情况
+        for t in actual_topics:
+            if target_topic in str(t):
+                print(f"  --> 发现相似主题: '{t}' (包含不可见字符或空格)")
+    else:
+        print(f"✅ 成功找到目标主题: '{target_topic}'")
+    print("-------------------------")
+    # === 新增诊断代码结束 ===
+    lib_df["scale_name"] = lib_df["scale_name"].astype(str).str.strip()
     grouped = lib_df.groupby("scale_name")
     
     for scale_name, df in grouped:
