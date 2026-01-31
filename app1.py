@@ -1123,22 +1123,19 @@ def ai_send():
     # 【修正2：补全逻辑判断】
     # 必须计算 is_finished 和 redirect，否则下面的 return 会报错
     is_finished = new_round >= MAX_ROUNDS
-    redirect = None
+    redirect_url = None # 重命名变量避免混淆
+    
     if is_finished:
-        # 获取当前大话题被抽取的子题总数
         chosen_indices = session_data.get('subtopic_indices_map', {}).get(topic_category, [])
-        
         if current_ai_idx + 1 < len(chosen_indices):
-            # 还有下一个抽中的子话题
             session_data['ai_subtopic_idx'] = current_ai_idx + 1
             session_data['ai_round'] = 0
             session_data['ai_history'] = {'left': [], 'center': [], 'right': [], 'user': []}
-            redirect = "/experiment"
+            redirect_url = "/experiment" # 跳转刷新以加载新子题
         else:
-            # 抽中的3个子话题全部结束，进入后测
             session_data['current_phase'] = 'post_survey'
-    
-    # 保存并触发硬盘备份
+            redirect_url = "/experiment" # 跳转以进入后测阶段
+
     save_session_data(session_data)
     auto_save_to_disk(get_session_id())
     
@@ -1149,7 +1146,7 @@ def ai_send():
         'right_response': right_response,
         'round': new_round,
         'is_finished': is_finished,
-        'redirect': None
+        'redirect': redirect_url # 确保这里不是 None
     })
 
 @app.route('/api/transition/next', methods=['POST'])
