@@ -1055,6 +1055,19 @@ def experiment():
                              max_rounds=MAX_ROUNDS,
                              topic_idx=session_data['current_topic_idx'],
                              total_topics=len(session_data['topic_order']))
+    elif phase == 'transition':
+        # 话题切换的过渡页面
+           return render_template('transition.html', 
+                             next_topic_idx=session_data.get('current_topic_idx', 0) + 1)
+
+    elif phase == 'end':
+        # 实验圆满结束页面
+           return render_template('end.html')
+
+    # --- 终极修复：万能兜底 ---
+    # 如果以上所有条件都不满足（例如 phase 是 welcome 或者 None），返回欢迎页或首页
+    print(f"DEBUG: 未知的阶段 [{phase}]，执行兜底跳转")
+    return render_template('welcome.html')
 
 @app.route('/api/survey/submit', methods=['POST'])
 def submit_survey():
