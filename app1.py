@@ -1061,56 +1061,54 @@ def submit_survey():
     """提交问卷数据（增强容错版）"""
     try:
         data = request.json
-        session_data = get_session_data()
+        # 获取 session 数据，如果失败则初始化为空字典
+        session_data = get_session_data() or {}
         
-        # 1. 容错处理：获取当前状态，如果缺失则赋默认值防止崩溃
+        # 使用 .get() 避免 KeyError 导致 500 错误
         topic_category = session_data.get('current_topic_category', 'unknown')
         phase = session_data.get('current_phase', 'pre_survey')
         
-        # 2. 尝试保存数据到 Session (作为备份)
+        # 确保数据结构存在
         if 'survey_results' not in session_data:
             session_data['survey_results'] = {}
-            
         if topic_category not in session_data['survey_results']:
             session_data['survey_results'][topic_category] = {'pre': [], 'post': []}
         
+        # 记录数据
         survey_type = 'pre' if phase == 'pre_survey' else 'post'
         session_data['survey_results'][topic_category][survey_type] = data.get('results', [])
         
-        # 3. 决定下一步逻辑（保持原有流程控制）
+        # --- 状态流转逻辑（容易出 500 的地方） ---
         if phase == 'pre_survey':
             session_data['current_phase'] = 'ai_chat'
             session_data['ai_subtopic_idx'] = 0
             session_data['ai_round'] = 0
-            session_data['ai_history'] = {'left': [], 'center': [], 'right': [], 'user': []}
         elif phase == 'post_survey':
+            # 获取当前索引和顺序，增加默认值防止越界
             current_idx = session_data.get('current_topic_idx', 0)
             topic_order = session_data.get('topic_order', [])
             
+            # 判断是否还有下一个话题
             if current_idx + 1 < len(topic_order):
-                session_data['current_phase'] = 'transition'
+                session_data['current_topic_idx'] = current_idx + 1
+                session_data['current_topic_category'] = topic_order[current_idx + 1]
+                session_data['current_phase'] = 'transition' # 进入过渡页
             else:
-                session_data['current_phase'] = 'end'
+                session_data['current_phase'] = 'end' # 实验全部结束
         
-        # 4. 尝试持久化保存
+        # 保存 Session 和 磁盘备份
+        save_session_data(session_data)
         try:
-            save_session_data(session_data)
             auto_save_to_disk(get_session_id())
-        except Exception as e:
-            print(f"磁盘写入失败，但继续流程: {e}")
+        except:
+            pass # 即使写磁盘失败，也不要报 500
         
         return jsonify({'success': True, 'redirect': '/experiment'})
 
     except Exception as e:
-        # --- 核心救灾逻辑 ---
-        # 如果这里报错了，通常是因为 session 彻底失效。
-        # 我们返回 success 并引导到 /experiment，让后端路由重新分配页面
-        print(f"后端提交发生严重异常: {e}")
-        return jsonify({
-            'success': True, 
-            'redirect': '/experiment',
-            'error': str(e) # 调试用
-        })
+        # 最后的兜底：哪怕上面全崩了，也给前端发一个“继续”指令
+        print(f"CRITICAL ERROR: {e}")
+        return jsonify({'success': True, 'redirect': '/experiment'})
 
 @app.route('/api/ai/start', methods=['POST'])
 def ai_start():
