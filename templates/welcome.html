@@ -1,3 +1,14 @@
+<script>
+document.getElementById('startForm').onsubmit = function() {
+    const experimentData = {
+        participant_id: "user_" + Math.random().toString(36).substr(2, 9),
+        start_time: new Date().toLocaleString(),
+        topics_data: {} // 用于按话题存储数据
+    };
+    localStorage.setItem('all_exp_data', JSON.stringify(experimentData));
+};
+</script>
+
 {% extends "layout.html" %}
 
 {% block content %}
