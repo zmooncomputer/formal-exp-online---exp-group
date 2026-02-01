@@ -20,38 +20,44 @@
 {% block extra_js %}
 <script>
 async function submitToFormspark() {
-    const FORMSPARK_ACTION_URL = “https://submit-form.com/dzhHi1fJ7”; // !!! 替换成你的 Formspark ID
+    // 【修复点 1】确保使用英文引号
+    const FORMSPARK_ACTION_URL = "https://submit-form.com/dzhHi1fJ7"; 
     
     const statusTitle = document.getElementById('status-title');
     const statusDesc = document.getElementById('status-desc');
     const statusIcon = document.getElementById('status-icon');
     const downloadBtn = document.getElementById('download-btn');
 
-    // 1. 从 localStorage 获取全量数据
-    const rawData = JSON.parse(localStorage.getItem('all_exp_data') || '{}');
+    // 1. 获取本地数据
+    let rawData = {};
+    try {
+        const storedData = localStorage.getItem('all_exp_data');
+        // 【修复点 2】增加解析容错，防止 null 或异常格式导致崩溃
+        rawData = storedData ? JSON.parse(storedData) : {};
+    } catch (e) {
+        console.error("本地数据解析失败:", e);
+    }
 
     if (Object.keys(rawData).length === 0) {
-        statusTitle.innerText = "未找到本地数据";
-        statusIcon.style.backgroundColor = "#fff5f5";
-        statusIcon.style.color = "#fa5252";
-        statusIcon.innerHTML = "<b>提示：</b> 可能是数据已提交或缓存被清理。";
+        if(statusTitle) statusTitle.innerText = "未找到本地数据";
+        if(statusIcon) statusIcon.innerHTML = "<b>提示：</b> 可能是数据已提交或缓存被清理。";
         return;
     }
 
-    // 2. 数据扁平化处理：将嵌套的话题数据展开，方便导出 CSV 后一行显示
+    // 2. 数据处理
     const payload = {
-        participant_id: rawData.participant_id,
+        participant_id: rawData.participant_id || "未知用户",
         start_time: rawData.start_time,
         end_time: new Date().toLocaleString(),
     };
 
-    // 遍历 topics_data，将每个话题的 前测、聊天、后测 提取出来
     if (rawData.topics_data) {
         Object.keys(rawData.topics_data).forEach(topic => {
             const data = rawData.topics_data[topic];
-            payload[`${topic}_前测`] = JSON.stringify(data.pre_survey);
-            payload[`${topic}_对话记录`] = data.chat_history;
-            payload[`${topic}_后测`] = JSON.stringify(data.post_survey);
+            // 确保数据存在再执行 stringify
+            payload[`${topic}_前测`] = data.pre_survey ? JSON.stringify(data.pre_survey) : "";
+            payload[`${topic}_对话记录`] = data.chat_history || "";
+            payload[`${topic}_后测`] = data.post_survey ? JSON.stringify(data.post_survey) : "";
         });
     }
 
@@ -60,36 +66,39 @@ async function submitToFormspark() {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                Accept: "application/json",
+                "Accept": "application/json",
             },
             body: JSON.stringify(payload),
         });
 
         if (response.ok) {
             // 3. 成功后的界面反馈
-            statusTitle.innerText = "实验圆满结束";
-            statusDesc.innerText = "非常感谢您的配合！您的数据已成功同步至云端。";
-            statusIcon.style.backgroundColor = "#f0fdf4";
-            statusIcon.style.color = "#27ae60";
-            statusIcon.innerHTML = "<b>数据已自动保存</b>";
+            if(statusTitle) statusTitle.innerText = "实验圆满结束";
+            if(statusDesc) statusDesc.innerText = "非常感谢您的配合！您的数据已成功同步至云端。";
+            if(statusIcon) {
+                statusIcon.style.backgroundColor = "#f0fdf4";
+                statusIcon.style.color = "#27ae60";
+                statusIcon.innerHTML = "<b>数据已自动保存</b>";
+            }
             
-            // 提交成功后清除本地缓存，防止重复提交
+            // 成功后才清除本地缓存
             localStorage.removeItem('all_exp_data');
         } else {
-            throw new Error("Formspark 响应异常");
+            throw new Error("Formspark 响应异常，状态码: " + response.status);
         }
     } catch (error) {
         console.error("提交失败:", error);
-        statusTitle.innerText = "数据同步遇到异常";
-        statusDesc.innerText = "请点击下方按钮手动下载数据并发送给负责人。";
-        statusIcon.style.backgroundColor = "#fff5f5";
-        statusIcon.style.color = "#fa5252";
-        statusIcon.innerHTML = "<b>上传失败</b>";
-        downloadBtn.style.display = "inline-block";
+        if(statusTitle) statusTitle.innerText = "数据同步遇到异常";
+        if(statusDesc) statusDesc.innerText = "请点击下方按钮手动下载数据并发送给负责人。";
+        if(statusIcon) {
+            statusIcon.style.backgroundColor = "#fff5f5";
+            statusIcon.style.color = "#fa5252";
+            statusIcon.innerHTML = "<b>上传失败</b>";
+        }
+        if(downloadBtn) downloadBtn.style.display = "inline-block";
     }
 }
 
-// 页面加载完成后立即执行
 window.onload = submitToFormspark;
 </script>
 {% endblock %}
