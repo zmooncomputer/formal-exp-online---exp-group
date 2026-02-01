@@ -332,16 +332,28 @@ class Experiment {
 
         // --- 2. 提交后端并跳转 ---
         fetch('/api/survey/submit', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({results: this.results})
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                window.location.href = data.redirect || '/experiment';
-            }
-        });
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({results: this.results})
+})
+.then(response => {
+    // 即使后端报 500，我们也要强行跳转
+    if (!response.ok) {
+        console.warn("服务器响应异常，强行跳转以继续实验");
+        window.location.href = '/experiment';
+        return;
+    }
+    return response.json();
+})
+.then(data => {
+    if (data && data.success) {
+        window.location.href = data.redirect || '/experiment';
+    }
+})
+.catch(err => {
+    console.error("提交出错，执行备选跳转:", err);
+    window.location.href = '/experiment';
+});
     } // 这里关闭 submitSurvey 函数
 
 } // 
