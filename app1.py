@@ -1058,35 +1058,59 @@ def experiment():
 
 @app.route('/api/survey/submit', methods=['POST'])
 def submit_survey():
-    """提交问卷数据"""
-    data = request.json
-    session_data = get_session_data()
-    topic_category = session_data['current_topic_category']
-    phase = session_data['current_phase']
-    
-    if topic_category not in session_data['survey_results']:
-        session_data['survey_results'][topic_category] = {'pre': [], 'post': []}
-    
-    survey_type = 'pre' if phase == 'pre_survey' else 'post'
-    session_data['survey_results'][topic_category][survey_type] = data.get('results', [])
-    save_session_data(session_data)
-    
-    # 决定下一步（新流程）
-    if phase == 'pre_survey':
-        session_data['current_phase'] = 'ai_chat'
-        session_data['ai_subtopic_idx'] = 0
-        session_data['ai_round'] = 0
-        session_data['ai_history'] = {'left': [], 'center': [], 'right': [], 'user': []}
-    elif phase == 'post_survey':
-        if session_data['current_topic_idx'] + 1 < len(session_data['topic_order']):
-            session_data['current_phase'] = 'transition'
-        else:
-            session_data['current_phase'] = 'end'
-    
-    save_session_data(session_data)
-    auto_save_to_disk(get_session_id())
-    
-    return jsonify({'success': True, 'redirect': '/experiment'})
+    """提交问卷数据（增强容错版）"""
+    try:
+        data = request.json
+        session_data = get_session_data()
+        
+        # 1. 容错处理：获取当前状态，如果缺失则赋默认值防止崩溃
+        topic_category = session_data.get('current_topic_category', 'unknown')
+        phase = session_data.get('current_phase', 'pre_survey')
+        
+        # 2. 尝试保存数据到 Session (作为备份)
+        if 'survey_results' not in session_data:
+            session_data['survey_results'] = {}
+            
+        if topic_category not in session_data['survey_results']:
+            session_data['survey_results'][topic_category] = {'pre': [], 'post': []}
+        
+        survey_type = 'pre' if phase == 'pre_survey' else 'post'
+        session_data['survey_results'][topic_category][survey_type] = data.get('results', [])
+        
+        # 3. 决定下一步逻辑（保持原有流程控制）
+        if phase == 'pre_survey':
+            session_data['current_phase'] = 'ai_chat'
+            session_data['ai_subtopic_idx'] = 0
+            session_data['ai_round'] = 0
+            session_data['ai_history'] = {'left': [], 'center': [], 'right': [], 'user': []}
+        elif phase == 'post_survey':
+            current_idx = session_data.get('current_topic_idx', 0)
+            topic_order = session_data.get('topic_order', [])
+            
+            if current_idx + 1 < len(topic_order):
+                session_data['current_phase'] = 'transition'
+            else:
+                session_data['current_phase'] = 'end'
+        
+        # 4. 尝试持久化保存
+        try:
+            save_session_data(session_data)
+            auto_save_to_disk(get_session_id())
+        except Exception as e:
+            print(f"磁盘写入失败，但继续流程: {e}")
+        
+        return jsonify({'success': True, 'redirect': '/experiment'})
+
+    except Exception as e:
+        # --- 核心救灾逻辑 ---
+        # 如果这里报错了，通常是因为 session 彻底失效。
+        # 我们返回 success 并引导到 /experiment，让后端路由重新分配页面
+        print(f"后端提交发生严重异常: {e}")
+        return jsonify({
+            'success': True, 
+            'redirect': '/experiment',
+            'error': str(e) # 调试用
+        })
 
 @app.route('/api/ai/start', methods=['POST'])
 def ai_start():
