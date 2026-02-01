@@ -22,7 +22,6 @@ import pickle
 
 # =================配置区域=================
 # 请确保 Excel 文件路径正确
-EXCEL_PATH = "baromter正式实验.xlsx" 
 CACHE_PATH = "topics_cache.pkl"
 QUESTION_CACHE_PATH = "questionnaire_cache.pkl"
 API_KEY = os.environ.get("DEEPSEEK_API_KEY")
@@ -743,18 +742,17 @@ QUESTIONNAIRE_LIBRARY = {}
 TOPICS_CONFIG = {}
 
 def load_big_topics_from_excel():
-    """
-    静态替代版本：直接从内存读取已写死的数据
-    功能与原代码完全一致，但响应速度提升 1000%
-    """
+ 
     global QUESTIONNAIRE_LIBRARY, TOPICS_CONFIG
+
+    data = STATIC_TOPICS_DATA 
     
-    # 直接使用静态数据
-    TOPICS_CONFIG = STATIC_TOPICS_DATA
-    QUESTIONNAIRE_LIBRARY = STATIC_TOPICS_DATA
+    # 同步更新全局库
+    TOPICS_CONFIG = data
+    QUESTIONNAIRE_LIBRARY = data
     
-    print("数据已从静态配置加载完成。")
-    return TOPICS_CONFIG
+    print("通知：Excel 读取部分已跳过，数据已从代码静态部分加载。")
+    return data 
 
 # 初始化
 load_big_topics_from_excel()
