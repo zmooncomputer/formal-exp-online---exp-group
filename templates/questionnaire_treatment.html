@@ -310,20 +310,14 @@ class Experiment {
     }
 
     async submitSurvey() {
-        // --- 新增：保存到本地全量仓库 ---
+        // --- 1. 保存到本地全量仓库 ---
         try {
-            // 获取当前仓库
             let allData = JSON.parse(localStorage.getItem('all_exp_data') || '{}');
-            
-            // 获取当前话题名称（从 Jinja2 模板变量获取）
             const topicName = "{{ topic_category }}"; 
             
-            // 确保话题对象存在
             if (!allData.topics_data) allData.topics_data = {};
             if (!allData.topics_data[topicName]) allData.topics_data[topicName] = {};
 
-            // 逻辑判断：根据后端传来的 session 状态或页面特征判断是前测还是后测
-            // 简单逻辑：如果该话题下还没有 pre_survey，则认定为前测；否则为后测
             if (!allData.topics_data[topicName].pre_survey) {
                 allData.topics_data[topicName].pre_survey = this.results;
                 console.log(`已缓存 ${topicName} 的前测数据`);
@@ -331,15 +325,12 @@ class Experiment {
                 allData.topics_data[topicName].post_survey = this.results;
                 console.log(`已缓存 ${topicName} 的后测数据`);
             }
-
-            // 更新仓库
             localStorage.setItem('all_exp_data', JSON.stringify(allData));
         } catch (e) {
             console.error("本地缓存保存失败:", e);
         }
-        // --- 本地保存结束 ---
 
-        // 原有的 fetch 逻辑保持不变，用于通知后端并获取跳转地址
+        // --- 2. 提交后端并跳转 ---
         fetch('/api/survey/submit', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -351,8 +342,11 @@ class Experiment {
                 window.location.href = data.redirect || '/experiment';
             }
         });
-    } //
+    } // 这里关闭 submitSurvey 函数
 
+} // 
+
+// 以下是实例化代码，必须在类闭合之后
 const exp = new Experiment(DATA_LIB);
 exp.start();
 </script>
