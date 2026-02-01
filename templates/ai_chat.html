@@ -83,6 +83,7 @@
     </div>
 
     <script>
+        let currentChatHistory = [];
         const MAX_ROUNDS = {{ max_rounds }};
         let currentRound = 0;
         let isFinished = false;
@@ -132,6 +133,7 @@
     sendBtn.disabled = true;
     const userMessage = userInput.value;
     userInput.value = '';
+    currentChatHistory.push(`User: ${userMessage}`);
     
     addMessage('left', userMessage, 'user');
     addMessage('center', userMessage, 'user');
@@ -152,6 +154,9 @@
             addMessage('left', data.left_response, 'ai');
             addMessage('center', data.center_response, 'ai');
             addMessage('right', data.right_response, 'ai');
+            currentChatHistory.push(`AI: ${data.left_response}`);
+            currentChatHistory.push(`AI: ${data.center_response}`);
+            currentChatHistory.push(`AI: ${data.right_response}`);
             currentRound = data.round;
             roundCounter.textContent = currentRound;
             
@@ -159,14 +164,13 @@
             if (data.is_finished) {
                 isFinished = true;
                 
-                // 1. 隐藏旧的输入控件
+                saveChatDataToStore();
+
                 userInput.style.display = 'none';
                 sendBtn.style.display = 'none';
-                
-                // 2. 显示“继续”按钮
                 nextBtn.style.display = 'block';
                 
-                // 3. 绑定手动跳转事件
+
                 nextBtn.onclick = function() {
                     window.location.href = (data.redirect || '/experiment');
                 };
@@ -229,6 +233,29 @@
         });
 
         startChat();
+
+        // 这个函数负责把散落在页面的对话记录塞进总仓库
+function saveChatDataToStore() {
+    try {
+        // 1. 获取全量数据包
+        let allData = JSON.parse(localStorage.getItem('all_exp_data') || '{}');
+        const topicName = "{{ topic_category }}"; // 使用 Jinja2 获取当前话题名
+        
+        if (!allData.topics_data) allData.topics_data = {};
+        if (!allData.topics_data[topicName]) allData.topics_data[topicName] = {};
+
+        // 2. 将对话数组连接成一个大字符串，并存入仓库
+        // 使用换行符连接，方便在 Formspark 后台生成的 CSV 中直接阅读
+        allData.topics_data[topicName].chat_history = currentChatHistory.join('\n\n');
+
+        // 3. 更新 localStorage
+        localStorage.setItem('all_exp_data', JSON.stringify(allData));
+        console.log(`[OK] ${topicName} 话题对话记录已成功暂存`);
+    } catch (e) {
+        console.error("保存对话至仓库时出错:", e);
+    }
+}
+        
     </script>
 </body>
 </html>
