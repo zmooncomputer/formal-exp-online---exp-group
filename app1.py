@@ -1167,16 +1167,15 @@ def ai_start():
     # 在处理 AI 回复的路由（通常是 /chat 或类似接口）中修改
 log_entry = {
     "session_id": get_session_id(),
-    "group": session_data.get('user_group', 'unknown'), # 标记组别
+    "group": session_data.get('user_group', 'unknown'),
     "topic_category": topic_category,
-    "phase": "ai_chat_start",
+    "phase": "chat_start",
     "round": 0,
-    "user_input": "[SYSTEM_INIT]", 
-    # 核心：记录开场时三个模型的文本
-    "left_response": left_response,   
+    "pre_score": session_data.get('pre_survey_score', {}).get(topic_category), # 记录该话题前测分
+    "left_response": left_response,   # AI 初始文本
     "center_response": center_response,
     "right_response": right_response,
-    "timestamp": timestamp
+    "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 }
 session_data['full_chat_logs'].append(log_entry)
 save_session_data(session_data)
@@ -1239,10 +1238,12 @@ def ai_send():
     "session_id": get_session_id(),
     "group": session_data.get('user_group', 'unknown'),
     "topic_category": topic_category,
-    "phase": "ai_chat_interaction",
-    "round": current_round,
-    "user_input": user_text, 
-    "ai_response": ai_reply,
+    "phase": "chat_interaction",
+    "round": session_data.get('current_round'),
+    "user_input": user_text,      
+    "ai_response": combined_response, 
+    "pre_score": session_data.get('pre_survey_score', {}).get(topic_category),
+    "post_score": session_data.get('post_survey_score', {}).get(topic_category),
     "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 }
     session_data['full_chat_logs'].append(log_entry)
@@ -1288,6 +1289,8 @@ def transition_next():
     session_data['current_phase'] = 'pre_survey'
     session_data['current_topic_category'] = session_data['topic_order'][session_data['current_topic_idx']]
     session_data['ai_subtopic_idx'] = 0
+    session_data['current_round'] = 0  
+    session_data['chat_history'] = []
     save_session_data(session_data)
     return jsonify({'success': True, 'redirect': '/experiment'})
 
