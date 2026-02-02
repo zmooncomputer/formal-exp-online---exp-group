@@ -959,34 +959,22 @@ def build_messages(topic, side, conversation_history, user_message, user_score, 
     return messages
 
 def save_log(user_id, data):
-    """保存实验数据到本地 JSON 文件，并自动标记组别"""
-    try:
-        # 确保日志目录存在
-        if not os.path.exists(LOG_DIR):
-            os.makedirs(LOG_DIR)
-
-        # 获取当前用户的组别（实验组或对照组）
-        # 这里从全局 SERVER_SESSIONS 中读取
-        session_info = SERVER_SESSIONS.get(user_id, {})
-        group_info = session_info.get('group_assignment', 'unknown')
+    log_file = os.path.join(LOG_DIR, f"{user_id}_log.csv")
+    file_exists = os.path.isfile(log_file)
+    
+    # 修改点：在 fieldnames 中增加 'group'
+    fieldnames = ['timestamp', 'user_id', 'group', 'topic', 'question_id', 'role', 'content', 'initial_score', 'final_score']
+    
+    with open(log_file, 'a', newline='', encoding='utf-8-sig') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if not file_exists:
+            writer.writeheader()
         
-        # 在数据内部打标签
-        data['group_assignment'] = group_info
-        data['user_id'] = user_id
-        data['save_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-        # 生成文件名：组别_用户ID_时间.json
-        filename = f"{group_info}_{user_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        filepath = os.path.join(LOG_DIR, filename)
-
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        
-        print(f"数据已成功保存至: {filepath}")
-        return True
-    except Exception as e:
-        print(f"保存文件时出错: {str(e)}")
-        return False
+        # 修改点：确保写入时从 session 获取组别信息
+        if 'group' not in data:
+            data['group'] = session.get('group', 'unknown')
+            
+        writer.writerow(data)
         
 # ============================================================
 # 路由处理
@@ -1144,30 +1132,6 @@ def experiment():
     # 如果以上所有条件都不满足（例如 phase 是 welcome 或者 None），返回欢迎页或首页
     print(f"DEBUG: 未知的阶段 [{phase}]，执行兜底跳转")
     return render_template('welcome.html')
-
-def save_log(user_id, data):
-    """持久化保存函数：确保数据写入服务器磁盘并标记组别"""
-    try:
-        # 1. 确保目录存在
-        if not os.path.exists(LOG_DIR):
-            os.makedirs(LOG_DIR)
-        
-        # 2. 获取组别标记并注入数据内部
-        # 这里的 group_assignment 会被记入 JSON，方便后期分析
-        group_info = data.get('group_assignment', 'unknown')
-        data['final_save_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-        # 3. 构造文件名：组别_用户ID_时间.json
-        filename = f"{group_info}_{user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.json"
-        filepath = os.path.join(LOG_DIR, filename)
-
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        print(f"数据成功上传至服务器路径: {filepath}")
-        return True
-    except Exception as e:
-        print(f"保存文件失败: {e}")
-        return False
         
 @app.route('/api/survey/submit', methods=['POST'])
 def submit_survey():
