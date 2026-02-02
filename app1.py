@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-实验组整合应用 - 真实反馈版 (Real Feedback)
-逻辑：前测 -> 真实Barometer反馈 -> AI交互 -> 后测
+合并版实验应用 - 随机分配到实验组/对照组
+实验组：真实反馈版 (Real Feedback)
+对照组：伪反馈版 (Fake Feedback)
 """
 
 import pandas as pd
@@ -24,22 +25,21 @@ import pickle
 # 请确保 Excel 文件路径正确
 CACHE_PATH = "topics_cache.pkl"
 QUESTION_CACHE_PATH = "questionnaire_cache.pkl"
-API_KEY = os.environ.get("DEEPSEEK_API_KEY")
+API_KEY = os.environ.get("DEEPSEEK_API_KEY", "sk-ff10a0a8c67e4901b1c41da5adfea3c8")  # Default to app2's key if not set
 BASE_URL = "https://api.deepseek.com/v1"
 MODEL_NAME = "deepseek-chat"
 MAX_ROUNDS = 3
 MAX_TOKENS = 250
 TEMPERATURE = 0.6
-LOG_DIR = "experiment_logs_exp_group"
+LOG_DIR = "experiment_logs_merged"
 # =========================================
 
 app = Flask(__name__)
-app.secret_key = 'experiment_group_secret_key' # 修改密钥
+app.secret_key = 'merged_experiment_secret_key' # 修改密钥
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
 client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
 SERVER_SESSIONS = {}
-
 
 # 三个话题的配置
 TOPICS_CONFIG = {
@@ -295,7 +295,7 @@ TOPICS_CONFIG = {
 2. 用经济压力、消费者权益和责任分配支持你的观点
 3. 回应要有逻辑性和说服力，语气要坚定但不失礼貌
 4. 检索相关新闻或历史事件，引用如"H&M等快时尚品牌通过'环保系列'提高单价，其实际环保贡献却微乎其微"或"某些有机食品通过营销制造'凡勃伦效应'（越贵越有人买）而非真正的生态增益"，灵活引用，贴近现实。
-5. 每次回复控制在100-150字
+5. 每次回复控制 in100-150字
 
 请直接阐述观点，不要有"作为AI"等开场白。""",
                 "right_system_prompt": """你是一个坚定支持"愿意为环保产品支付更高价格"观点的辩论者。
@@ -367,7 +367,7 @@ TOPICS_CONFIG = {
 2. 用代际公平、道德责任和环境危机支持你的观点
 3. 回应要有逻辑性和说服力，语气要坚定但不失礼貌
 4. 检索相关新闻或历史事件，引用如"冰芯数据显示当前的碳浓度增幅已超过过去80万年的自然波动，这是技术难以逆转的物理现状"，灵活引用，贴近现实。
-5. 每次回复控制在100-150字
+5. 每次回复控制 in100-150字
 
 请直接阐述观点，不要有"作为AI"等开场白。""",
                 "center_system_prompt": """你是一个中立的思考引导者，帮助用户深入思考"是否愿意为下一代环境做出牺牲"这个话题。
@@ -383,7 +383,7 @@ TOPICS_CONFIG = {
 2. 用苏格拉底式提问引导思考
 3. 帮助用户识别论证中的假设和逻辑
 4. 提出具体场景让用户思考（如什么算"牺牲"、代际责任的边界等）
-5. 每次回复控制在50-100字
+5. 每次回复控制 in50-100字
 
 请以温和、启发性的语气回复，不要有"作为AI"等开场白。"""
             }
@@ -411,7 +411,7 @@ TOPICS_CONFIG = {
 1. 坚定你的立场，识别被试的立场，并在此基础上向"精英主义与专家治社"方向推进 2-3 个等级
 2. 回应要有逻辑性和说服力，语气要坚定但不失礼貌
 3. 检索相关新闻或历史事件，引用"某些城市因居民过度干预交通规划导致基建停滞"或"瑞士某些社区直选导致公共财政因民粹性减税而破产"等案例；也可引用如"新加坡高效的社区政务官体系如何通过顶层设计实现社会和谐"等多样的真实案例，灵活引用，贴近现实。
-4. 每次回复控制在100-150字
+4. 每次回复控制 in100-150字
 
 请直接阐述观点，不要有"作为AI"等开场白。""",
                 "right_system_prompt": """你是一个坚定支持"居民有知识和能力对社区事务发表意见"观点的辩论者。
@@ -426,8 +426,8 @@ TOPICS_CONFIG = {
 1. 坚定你的立场，识别被试的立场，并在此基础上向"基层民主与居民主体性"方向推进 2-3 个等级
 2. 用基层民主和公民参与理论支持你的观点
 3. 回应要有逻辑性和说服力，语气要坚定但不失礼貌
-4. 每次回复控制在100-150字
-5. 检索相关新闻或历史事件，引用"波特兰通过居民深度参与城市规划实现的社区复兴"，或"参与式预算（Participatory Budgeting）在某些地区成功降低了公共腐败并提升了设施利用率"等灵活引用，贴近现实
+4. 每次回复控制 in100-150字
+5. 检索相关新闻或历史 events，引用"波特兰通过居民深度参与城市规划实现的社区复兴"，或"参与式预算（Participatory Budgeting）在某些地区成功降低了公共腐败并提升了设施利用率"等灵活引用，贴近现实
 
 请直接阐述观点，不要有"作为AI"等开场白。""",
                 "center_system_prompt": """你是一个中立的思考引导者，帮助用户深入思考"居民是否有知识和能力对社区事务发表意见"这个话题。
@@ -443,7 +443,7 @@ TOPICS_CONFIG = {
 2. 用苏格拉底式提问引导思考
 3. 帮助用户识别论证中的假设和逻辑
 4. 提出具体场景让用户思考
-5. 每次回复控制在50-100字
+5. 每次回复控制 in50-100字
 
 请以温和、启发性的语气回复，不要有"作为AI"等开场白。"""
             },
@@ -466,8 +466,8 @@ TOPICS_CONFIG = {
 1. 坚定你的立场，识别被试的立场，并在此基础上向"实用主义治理与行政效率优先"方向推进 2-3 个等级
 2. 用实际案例说明居民参与的局限性
 3. 回应要有逻辑性和说服力，语气要坚定但不失礼貌
-4. 检索相关新闻或历史事件，灵活引用多样的真实案例以增强说服力，避免死板复读。如：引用"某些全球性基建项目（如伦敦希思罗机场扩建）尽管经历了数十年居民咨询，最终仍按最初的战略规划执行"；或指出"参与式预算在许多城市沦为仅仅是修剪草坪等琐碎事务的投票，而核心财政分配从未向民众开放"等现实悖论。
-5. 每次回复控制在100-150字
+4. 检索相关新闻或历史 events，灵活引用多样的真实案例以增强说服力，避免死板复读。如：引用"某些全球性基建项目（如伦敦希思罗机场扩建）尽管经历了数十年居民咨询，最终仍按最初的战略规划执行"；或指出"参与式预算在许多城市沦为仅仅是修剪草坪等琐碎事务的投票，而核心财政分配从未向民众开放"等现实悖论。
+5. 每次回复控制 in100-150字
 
 请直接阐述观点，不要有"作为AI"等开场白。""",
                 "right_system_prompt": """你是一个坚定支持"居民参加社区事务讨论会对决策产生重要影响"观点的辩论者。
@@ -482,8 +482,8 @@ TOPICS_CONFIG = {
 1.  坚定你的立场，识别被试的立场，并在此基础上向"实质性权力赋能与共同治理"方向推进 2-3 个等级
 2. 用参与式治理理论和成功案例支持你的观点
 3. 回应要有逻辑性和说服力，语气要坚定但不失礼貌
-4. 检索相关新闻或历史事件，灵活引用多样的真实案例以增强说服力，避免死板复读。如：引用""首尔'参与式预算'制度让居民直接决定数千万美元的公共支出方向"；或"某些社区通过联合抵制不合理规划，成功迫使政府将绿地留给居民而非开发商""等例子
-5. 每次回复控制在100-150字
+4. 检索相关新闻或历史 events，灵活引用多样的真实案例以增强说服力，避免死板复读。如：引用""首尔'参与式预算'制度让居民直接决定数千万美元的公共支出方向"；或"某些社区通过联合抵制不合理规划，成功迫使政府将绿地留给居民而非开发商""等例子
+5. 每次回复控制 in100-150字
 
 请直接阐述观点，不要有"作为AI"等开场白。""",
                 "center_system_prompt": """你是一个中立的思考引导者，帮助用户深入思考"居民参与社区讨论是否会影响决策"这个话题。
@@ -499,7 +499,7 @@ TOPICS_CONFIG = {
 2. 用苏格拉底式提问引导思考
 3. 帮助用户识别论证中的假设和逻辑
 4. 提出具体场景让用户思考
-5. 每次回复控制在100-150字
+5. 每次回复控制 in100-150字
 
 请以温和、启发性的语气回复，不要有"作为AI"等开场白。"""
             },
@@ -520,10 +520,10 @@ TOPICS_CONFIG = {
 
 辩论要求：
 1. 坚定你的立场，识别被试的立场，并在此基础上向"行政专业主义与社会分工效率"方向推进 2-3 个等级
-2. 用效率和专业分工理论支持你的观点
+2. 用效率和专业分工 theory 支持你的观点
 3. 回应要有逻辑性和说服力，语气要坚定但不失礼貌
-4. 检索相关新闻或历史事件，比如"日本许多公寓管理委员会通过高度专业化的受托机构实现数十年如一日的精准维护，而非依靠居民随机投票"；或指出"新加坡组屋制度的成功，核心在于其顶层设计的专业统筹，而非碎片化的社区议事"，灵活引用。
-5. 每次回复控制在100-150字
+4. 检索相关新闻或历史 events，比如"日本许多公寓管理委员会通过高度专业化的受托机构实现数十年如一日的精准维护，而非依靠居民随机投票"；或指出"新加坡组屋制度的成功，核心在于其顶层设计的专业统筹，而非碎片化的社区议事"，灵活引用。
+5. 每次回复控制 in100-150字
 
 请直接阐述观点，不要有"作为AI"等开场白。""",
                 "right_system_prompt": """你是一个坚定支持"社区事务需要居民参与操心"观点的辩论者。
@@ -536,10 +536,10 @@ TOPICS_CONFIG = {
 
 辩论要求：
 1. 坚定你的立场，识别被试的立场，并在此基础上向"实质性参与与协商民主"方向推进 2-3 个等级
-2. 用社区自治和公民参与理论支持你的观点
-3. 回应要有逻辑性和说服力，语气要坚定但不失礼貌
-4. 检索相关新闻或历史事件，比如"巴西阿雷格里港通过'参与式预算'让贫民窟设施得到根本改善，证明了草根决策的科学性"；或"纽约'高线公园'从荒废铁路变身地标，核心驱动力并非政府意志，而是当地居民长达十年的坚持与专业游说"，灵活引用。
-5. 每次回复控制在150-200字
+2. 用社区自治和公民参与 theory 支持你的观点
+3. 回应要有逻辑性和说服力，语气要坚定 but不失礼貌
+4. 检索相关新闻或历史 events，比如"巴西阿雷格里港通过'参与式预算'让贫民窟设施得到根本改善，证明了草根决策的科学性"；或"纽约'高线公园'从荒废铁路变身地标，核心驱动力并非政府意志，而是当地居民长达十年的坚持与专业游说"，灵活引用。
+5. 每次回复控制 in150-200字
 
 请直接阐述观点，不要有"作为AI"等开场白。""",
                 "center_system_prompt": """你是一个中立的思考引导者，帮助用户深入思考"社区事务是否需要居民操心"这个话题。
@@ -555,7 +555,7 @@ TOPICS_CONFIG = {
 2. 用苏格拉底式提问引导思考
 3. 帮助用户识别论证中的假设和逻辑
 4. 提出具体场景让用户思考
-5. 每次回复控制在100-150字
+5. 每次回复控制 in100-150字
 
 请以温和、启发性的语气回复，不要有"作为AI"等开场白。"""
             }
@@ -576,8 +576,8 @@ STATIC_TOPICS_DATA = {
                 "center_stance": "思考提示",
                 "intro": "请问你是否同意下列观点？",
                 "left_system_prompt": "你是一个坚定支持“倾向于保障就业与产值”立场的辩论者。\n\n讨论观点：为了整个社会能享有更好的自然环境，我愿意降低目前的生活水平\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "right_system_prompt": "你是一个坚定支持“倾向于生态修复与监管”立场的辩论者。\n\n讨论观点：为了整个社会能享有更好的自然环 境，我愿意降低目前的生活水平\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:为了整个社会能享有更好的自然环境，我愿意降低目前的生活水 平\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户从不同角度思考\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
+                "right_system_prompt": "你是一个坚定支持“倾向于生态修复与监管”立场的辩论者。\n\n讨论观点：为了整个社会能享有更好的自然环境，我愿意降低目前的生活水平\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
+                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:为了整个社会能享有更好的自然环境，我愿意降低目前的生活水平\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户从不同角度思考\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
                 "median": 3.0
             },
             {
@@ -588,8 +588,8 @@ STATIC_TOPICS_DATA = {
                 "center_stance": "思考提示",
                 "intro": "请问你是否同意下列观点？",
                 "left_system_prompt": "你是一个坚定支持“倾向于保障就业与产值”立场的辩论者。\n\n讨论观点：为了整个社会能享有更好的自然环境，我愿意支付更高的价格购买利于环保的产品\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "right_system_prompt": "你是一个坚定支持“倾向于生态修复与监管”立场的辩论者。\n\n讨论观点：为了整个社会能享有更好的自然环 境，我愿意支付更高的价格购买利于环保的产品\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:为了整个社会能享有更好的自然环境，我愿意支付更高的价格购 买利于环保的产品\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户从不同角度思考\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",       
+                "right_system_prompt": "你是一个坚定支持“倾向于生态修复与监管”立场的辩论者。\n\n讨论观点：为了整个社会能享有更好的自然环境，我愿意支付更高的价格购买利于环保的产品\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
+                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:为了整个社会能享有更好的自然环境，我愿意支付更高的价格购买利于环保的产品\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户从不同角度思考\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
                 "median": 3.0
             },
             {
@@ -654,7 +654,7 @@ STATIC_TOPICS_DATA = {
                 "intro": "请问你是否同意下列观点？",
                 "left_system_prompt": "你是一个坚定支持“私人生活导向”立场的辩论者。\n\n讨论观点：村居/社区事务交给村/居委会就可以了，不用村/居民操心\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出 现“作为AI”等开场白",
                 "right_system_prompt": "你是一个坚定支持“公共事务参与导向”立场的辩论者。\n\n讨论观点：村居/社区事务交给村/居委会就可以了 ，不用村/居民操心\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4.  不要出现“作为AI”等开场白",
-                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:村居/社区事务交给村/居委会就可以了，不用村/居民操心\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户从不同角度思考\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
+                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:村居/社区事务交给村/居委会就可以了，不用村/居民操心\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户 from different angles\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
                 "median": 2.5
             }
         ]
@@ -671,7 +671,7 @@ STATIC_TOPICS_DATA = {
                 "intro": "请问你是否同意下列观点？",
                 "left_system_prompt": "你是一个坚定支持“个体权利与私域保护导向”立场的辩论者。\n\n讨论观点：政府按国家需要规定夫妻生育子女的数量\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作 为AI”等开场白",
                 "right_system_prompt": "你是一个坚定支持“社会整体统筹与效能导向”立场的辩论者。\n\n讨论观点：政府按国家需要规定夫妻生育子 女的数量\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“ 作为AI”等开场白",
-                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:政府按国家需要规定夫妻生育子女的数量\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户从不同角度思考\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
+                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:政府按国家需要规定夫妻生育子女的数量\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户 from different angles\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
                 "median": 4.0
             },
             {
@@ -681,9 +681,9 @@ STATIC_TOPICS_DATA = {
                 "right_stance": "社会整体统筹与效能导向",
                 "center_stance": "思考提示",
                 "intro": "请问你是否同意下列观点？",
-                "left_system_prompt": "你是一个坚定支持“个体权利与私域保护导向”立场的辩论者。\n\n讨论观点：政府直接获取公民的任何个人信息，如行程轨迹、网络言论、财产、肖像等\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "right_system_prompt": "你是一个坚定支持“社会整体统筹与效能导向”立场的辩论者。\n\n讨论观点：政府直接获取公民的任何个人信 息，如行程轨迹、网络言论、财产、肖像等\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:政府直接获取公民的任何个人信息，如行程轨迹、网络言论、财 产、肖像等\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户从不同角度思考\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
+                "left_system_prompt": "你是一个坚定支持“个体权利与私域保护导向”立场的辩论者。\n\n讨论观点：政府直接获取公民的任何个人信息，如行程轨迹、网络言论、财产、肖像等\n\n要求：\n1. 坚定支持你的立场，直接回应 user观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
+                "right_system_prompt": "你是一个坚定支持“社会整体统筹与效能导向”立场的辩论者。\n\n讨论观点：政府直接获取公民的任何个人信 息，如行程轨迹、网络言论、财产、肖像等\n\n要求：\n1. 坚定支持你的立场，直接回应 user观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
+                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:政府直接获取公民的 any个人信息，如行程轨迹、网络言论、财 产、肖像等\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导 user from different angles\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
                 "median": 3.0
             },
             {
@@ -693,9 +693,9 @@ STATIC_TOPICS_DATA = {
                 "right_stance": "社会整体统筹与效能导向",
                 "center_stance": "思考提示",
                 "intro": "请问你是否同意下列观点？",
-                "left_system_prompt": "你是一个坚定支持“个体权利与私域保护导向”立场的辩论者。\n\n讨论观点：法院法官一经任命，任何人或组织（包括上级党委）不能随意撤换和调动\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "right_system_prompt": "你是一个坚定支持“社会整体统筹与效能导向”立场的辩论者。\n\n讨论观点：法院法官一经任命，任何人或组 织（包括上级党委）不能随意撤换和调动\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:法院法官一经任命，任何人或组织（包括上级党委）不能随意撤 换和调动\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户从不同角度思考\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
+                "left_system_prompt": "你是一个坚定支持“个体权利与私域保护导向”立场的辩论者。\n\n讨论观点：法院法官一经任命，任何人或组织（包括上级党委）不能随意撤换和调动\n\n要求：\n1. 坚定支持你的立场，直接回应 user观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
+                "right_system_prompt": "你是一个坚定支持“社会整体统筹与效能导向”立场的辩论者。\n\n讨论观点：法院法官一经任命，任何人或组 织（包括上级党委）不能随意撤换和调动\n\n要求：\n1. 坚定支持你的立场，直接回应 user观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
+                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:法院法官一经任命，任何人或组织（包括上级党委）不能随意撤 换和调动\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导 user from different angles\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
                 "median": 4.0
             },
             {
@@ -705,9 +705,9 @@ STATIC_TOPICS_DATA = {
                 "right_stance": "社会整体统筹与效能导向",
                 "center_stance": "思考提示",
                 "intro": "请问你是否同意下列观点？",
-                "left_system_prompt": "你是一个坚定支持“个体权利与私域保护导向”立场的辩论者。\n\n讨论观点：政府增加税收无需纳税人同意\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "right_system_prompt": "你是一个坚定支持“社会整体统筹与效能导向”立场的辩论者。\n\n讨论观点：政府增加税收无需纳税人同意\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开 场白",
-                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:政府增加税收无需纳税人同意\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户从不同角度思考\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
+                "left_system_prompt": "你是一个坚定支持“个体权利与私域保护导向”立场的辩论者。\n\n讨论观点：政府增加税收无需纳税人同意\n\n要求：\n1. 坚定支持你的立场，直接回应 user观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
+                "right_system_prompt": "你是一个坚定支持“社会整体统筹与效能导向”立场的辩论者。\n\n讨论观点：政府增加税收无需纳税人同意\n\n要求：\n1. 坚定支持你的立场，直接回应 user观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开 场白",
+                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:政府增加税收无需纳税人同意\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导 user from different angles\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
                 "median": 3.0
             },
             {
@@ -717,9 +717,9 @@ STATIC_TOPICS_DATA = {
                 "right_stance": "社会整体统筹与效能导向",
                 "center_stance": "思考提示",
                 "intro": "请问你是否同意下列观点？",
-                "left_system_prompt": "你是一个坚定支持“个体权利与私域保护导向”立场的辩论者。\n\n讨论观点：防疫期间警察不经居民同意进入居民家中实施消毒\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "right_system_prompt": "你是一个坚定支持“社会整体统筹与效能导向”立场的辩论者。\n\n讨论观点：防疫期间警察不经居民同意进入 居民家中实施消毒\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:防疫期间警察不经居民同意进入居民家中实施消毒\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户从不同角度思考\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
+                "left_system_prompt": "你是一个坚定支持“个体权利与私域保护导向”立场的辩论者。\n\n讨论观点：防疫期间警察不经居民同意进入居民家中实施消毒\n\n要求：\n1. 坚定支持你的立场，直接回应 user观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
+                "right_system_prompt": "你是一个坚定支持“社会整体统筹与效能导向”立场的辩论者。\n\n讨论观点：防疫期间警察不经居民同意进入 居民家中实施消毒\n\n要求：\n1. 坚定支持你的立场，直接回应 user观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
+                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:防疫期间警察不经居民同意进入居民家中实施消毒\n\n要求：\n1. 保持中立，不站队\n2. 用提问引导 user from different angles\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
                 "median": 2.0
             },
             {
@@ -729,10 +729,10 @@ STATIC_TOPICS_DATA = {
                 "right_stance": "社会整体统筹与效能导向",
                 "center_stance": "思考提示",
                 "intro": "请问你是否同意下列观点？",
-                "left_system_prompt": "你是一个坚定支持“个体权利与私域保护导向”立场的辩论者。\n\n讨论观点：法院判决重要官员贪腐案件要听取党委的意见\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "right_system_prompt": "你是一个坚定支持“社会整体统筹与效能导向”立场的辩论者。\n\n讨论观点：法院判决重要官员贪腐案件要听取党委的意见\n\n要求：\n1. 坚定支持你的立场，直接回应用户观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
-                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:法院判决重要官员贪腐案件不要听取党委的意见 \n\n要求：\n1. 保持中立，不站队\n2. 用提问引导用户从不同角度思考\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
-                "median": 3.0      
+                "left_system_prompt": "你是一个坚定支持“个体权利与私域保护导向”立场的辩论者。\n\n讨论观点：法院判决重要官员贪腐案件要听取党委的意见\n\n要求：\n1. 坚定支持你的立场，直接回应 user观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
+                "right_system_prompt": "你是一个坚定支持“社会整体统筹与效能导向”立场的辩论者。\n\n讨论观点：法院判决重要官员贪腐案件要听取党委的意见\n\n要求：\n1. 坚定支持你的立场，直接回应 user观点\n2. 给出清晰的逻辑与现实例子（避免重复例子）\n3. 字数约100-150字\n4. 不要出现“作为AI”等开场白",
+                "center_system_prompt": "你是一个中立的思考引导者。\n\n讨论观点:法院判决重要官员贪腐案件不要听取党委的意见 \n\n要求：\n1. 保持中立，不站队\n2. 用提问引导 user from different angles\n3. 字数约80-150字\n4. 不要出现“作为AI”等开场白",
+                "median": 3.0
             }
         ]
     }
@@ -742,17 +742,16 @@ QUESTIONNAIRE_LIBRARY = {}
 TOPICS_CONFIG = {}
 
 def load_big_topics_from_excel():
- 
     global QUESTIONNAIRE_LIBRARY, TOPICS_CONFIG
 
-    data = STATIC_TOPICS_DATA 
-    
+    data = STATIC_TOPICS_DATA
+
     # 同步更新全局库
     TOPICS_CONFIG = data
     QUESTIONNAIRE_LIBRARY = data
-    
+
     print("通知：Excel 读取部分已跳过，数据已从代码静态部分加载。")
-    return data 
+    return data
 
 # 初始化
 load_big_topics_from_excel()
@@ -770,9 +769,9 @@ def auto_save_to_disk(session_id):
     session_data = SERVER_SESSIONS.get(session_id)
     if not session_data:
         return
-    
+
     file_path = os.path.join(LOG_DIR, f"{session_id}_backup.json")
-    
+
     # 构造一个可序列化的字典（去除无法序列化的对象）
     try:
         with open(file_path, 'w', encoding='utf-8') as f:
@@ -785,6 +784,9 @@ def auto_save_to_disk(session_id):
 def get_session_data():
     session_id = get_session_id()
     if session_id not in SERVER_SESSIONS:
+        # 随机分配组别
+        group_assignment = 'experimental' if random.random() < 0.5 else 'control'
+
         SERVER_SESSIONS[session_id] = {
             'topic_order': [],
             'current_topic_idx': 0,
@@ -794,9 +796,10 @@ def get_session_data():
             'ai_round': 0,
             'ai_history': {'left': [], 'center': [], 'right': [], 'user': []},
             # 【新增】用于存储所有话题的完整聊天记录
-            'full_chat_logs': [], 
+            'full_chat_logs': [],
             'survey_results': {},
-            'questionnaire_data': None
+            'questionnaire_data': None,
+            'group_assignment': group_assignment  # 记录组别分配
         }
     return SERVER_SESSIONS[session_id]
 
@@ -807,18 +810,18 @@ def save_session_data(data):
 def init_all_data():
     """主程序启动时一键加载所有缓存"""
     global TOPICS_CONFIG, QUESTIONNAIRE_LIBRARY
-    
+
     try:
         # 加载 AI 话题与 Prompt 缓存
         if os.path.exists("topics_cache.pkl"):
             with open("topics_cache.pkl", "rb") as f:
                 TOPICS_CONFIG = pickle.load(f)
-        
+
         # 加载 问卷与预计算好的 KDE 缓存
         if os.path.exists("questionnaire_cache.pkl"):
             with open("questionnaire_cache.pkl", "rb") as f:
                 QUESTIONNAIRE_LIBRARY = pickle.load(f)
-                
+
         print(" 缓存数据加载成功：包含预计算KDE曲线")
     except Exception as e:
         print(f" 加载缓存失败，请先运行 preprocess.py: {e}")
@@ -858,7 +861,7 @@ def build_messages(topic, side, conversation_history, user_message, user_score, 
     # 1. 基础标签提取
     left_label = topic['left_stance']
     right_label = topic['right_stance']
-    
+
     # 获取当前 AI 的立场和对立面标签
     if side == 'left':
         system_base = topic['left_system_prompt']
@@ -890,7 +893,7 @@ def build_messages(topic, side, conversation_history, user_message, user_score, 
 """
 
     messages = [{"role": "system", "content": system_prompt}]
-    
+
     # 4. 逻辑分支：初始轮次
     if is_initial:
         if side == 'center':
@@ -899,9 +902,9 @@ def build_messages(topic, side, conversation_history, user_message, user_score, 
         else:
             user_prompt = f"""现在开始讨论，话题是："{topic['question']}"
 请你从“{stance}”的立场出发，提供一段清晰、有说服力的初始观点阐述，直接切入核心，必须包含一个具体、真实的社会或历史证据。字数限制：严格控制在 100-150 字之间"""
-        
+
         messages.append({"role": "user", "content": user_content if 'user_content' in locals() else user_prompt})
-    
+
     # 5. 逻辑分支：后续动态博弈
     else:
         history_text = "之前的对话回顾：\n\n"
@@ -909,7 +912,7 @@ def build_messages(topic, side, conversation_history, user_message, user_score, 
         user_history = conversation_history.get('user', [])
         for i in range(min(len(side_history), len(user_history))):
             history_text += f"【第{i+1}轮】\n你的观点：{side_history[i]}\n用户回应：{user_history[i]}\n\n"
-        
+
         if side == 'center':
             user_prompt = f"""{history_text}
 【当前轮次】用户刚才说："{user_message}"
@@ -933,9 +936,9 @@ def build_messages(topic, side, conversation_history, user_message, user_score, 
 3. **回复要求**：
    - 必须正面回复用户的具体点："{user_message}"。
    - 保持 150-200 字，逻辑高增益。"""
-        
+
         messages.append({"role": "user", "content": user_prompt})
-    
+
     return messages
 
 # ============================================================
@@ -948,19 +951,21 @@ def index():
     session_data = get_session_data()
     session_data['current_phase'] = 'welcome'
     save_session_data(session_data)
-    # 注意：这里可能需要一个区分实验组的欢迎页，或者复用
-    return render_template('welcome.html', group='experimental_real')
+    
+    # 根据组别显示不同的欢迎页面
+    group = session_data.get('group_assignment', 'control')
+    return render_template('welcome.html', group=group)
 
 @app.route('/start', methods=['POST'])
 def start():
     """开始实验 - 随机排序话题并随机抽取3个子题"""
-    global TOPICS_CONFIG 
+    global TOPICS_CONFIG
     session_data = get_session_data()
-    
+
     if not TOPICS_CONFIG:
         TOPICS_CONFIG = load_big_topics_from_excel()
-        
-    topic_categories = list(TOPICS_CONFIG.keys())      
+
+    topic_categories = list(TOPICS_CONFIG.keys())
     random.shuffle(topic_categories)
 
     # --- 新增：为每个大话题随机抽取3个子题索引 ---
@@ -970,9 +975,9 @@ def start():
         # 如果子题少于3个则全选，否则随机抽3个并排序以保持逻辑连续性
         sample_size = min(3, total_sub)
         indices = random.sample(range(total_sub), sample_size)
-        indices.sort() 
+        indices.sort()
         subtopic_indices[cat] = indices
-    
+
     session_data['subtopic_indices_map'] = subtopic_indices # 存储抽取的索引
     # ------------------------------------------
 
@@ -989,7 +994,7 @@ def experiment():
     """实验主页面 - 增加强制清洗与诊断打印"""
     session_data = get_session_data()
     phase = session_data.get('current_phase', 'welcome')
-    
+
     # 诊断 1: 打印 session 里存的原始值
     raw_category = session_data.get('current_topic_category', '')
     print(f"DEBUG: Session中的原始主题 -> [{raw_category}]")
@@ -997,10 +1002,10 @@ def experiment():
 
     # 核心修复点：强制对 session 中的主题进行清洗，去掉引号、空格和换行
     topic_category = str(raw_category).strip().replace('"', '').replace("'", "")
-    
+
     if phase == 'pre_survey' or phase == 'post_survey':
         questionnaire_all = QUESTIONNAIRE_LIBRARY
-        
+
         # 诊断 2: 再次确认清洗后的值是否在库中
         if topic_category not in questionnaire_all:
             # 如果还是找不到，尝试遍历匹配（终极兼容逻辑）
@@ -1009,32 +1014,46 @@ def experiment():
                 if topic_category in key or key in topic_category:
                     found_key = key
                     break
-            
+
             if found_key:
                 topic_category = found_key
             else:
-                # 依然找不到时，在报错信息里把前后的“不可见字符”也显示出来
+                # 依然找不到时，在报错信息里把前后的"不可见字符"也显示出来
                 return f"Error: Topic [{topic_category}] not found in Excel. Available: {list(questionnaire_all.keys())}", 500
-            
+
         questionnaire_data = {topic_category: questionnaire_all[topic_category]}
         session_data['questionnaire_data'] = questionnaire_data
         save_session_data(session_data)
-        
+
         is_pre = (phase == 'pre_survey')
-        json_data = json.dumps(questionnaire_data, ensure_ascii=False)
         
-        return render_template('questionnaire_treatment.html', 
-                             questionnaire_data=json_data,
-                             topic_category=topic_category,
-                             is_pre=is_pre,
-                             topic_idx=session_data['current_topic_idx'],
-                             total_topics=len(session_data['topic_order']),
-                             is_control=False)
-    
+        # Determine which template to use based on group assignment
+        group = session_data.get('group_assignment', 'control')
+        is_control = (group == 'control')
+        
+        json_data = json.dumps(questionnaire_data, ensure_ascii=False)
+
+        if is_control:
+            return render_template('questionnaire_control.html',
+                                 questionnaire_data=json_data,
+                                 topic_category=topic_category,
+                                 is_pre=is_pre,
+                                 topic_idx=session_data['current_topic_idx'],
+                                 total_topics=len(session_data['topic_order']),
+                                 is_control=True)
+        else:
+            return render_template('questionnaire_treatment.html',
+                                 questionnaire_data=json_data,
+                                 topic_category=topic_category,
+                                 is_pre=is_pre,
+                                 topic_idx=session_data['current_topic_idx'],
+                                 total_topics=len(session_data['topic_order']),
+                                 is_control=False)
+
     elif phase == 'ai_chat':
         # 同样对 AI 阶段的主题进行清洗
         topic_category = str(session_data['current_topic_category']).strip().replace('"', '').replace("'", "")
-        
+
         # 兼容性检查
         if topic_category not in TOPICS_CONFIG:
             for key in TOPICS_CONFIG.keys():
@@ -1044,11 +1063,11 @@ def experiment():
 
         chosen_indices = session_data.get('subtopic_indices_map', {}).get(topic_category, [])
         current_ai_idx = session_data.get('ai_subtopic_idx', 0)
-        
+
         real_topic_id = chosen_indices[current_ai_idx] if current_ai_idx < len(chosen_indices) else chosen_indices[0]
         topics = TOPICS_CONFIG[topic_category]['topics']
         topic = topics[real_topic_id]
-        
+
         return render_template('ai_chat.html',
                              topic=topic,
                              topic_category=topic_category,
@@ -1057,7 +1076,7 @@ def experiment():
                              total_topics=len(session_data['topic_order']))
     elif phase == 'transition':
         # 话题切换的过渡页面
-           return render_template('transition.html', 
+           return render_template('transition.html',
                              next_topic_idx=session_data.get('current_topic_idx', 0) + 1)
 
     elif phase == 'end':
@@ -1076,21 +1095,26 @@ def submit_survey():
         data = request.json
         # 获取 session 数据，如果失败则初始化为空字典
         session_data = get_session_data() or {}
-        
+
         # 使用 .get() 避免 KeyError 导致 500 错误
         topic_category = session_data.get('current_topic_category', 'unknown')
         phase = session_data.get('current_phase', 'pre_survey')
-        
+        group_assignment = session_data.get('group_assignment', 'control')  # 获取组别
+
         # 确保数据结构存在
         if 'survey_results' not in session_data:
             session_data['survey_results'] = {}
         if topic_category not in session_data['survey_results']:
             session_data['survey_results'][topic_category] = {'pre': [], 'post': []}
-        
+
         # 记录数据
         survey_type = 'pre' if phase == 'pre_survey' else 'post'
         session_data['survey_results'][topic_category][survey_type] = data.get('results', [])
-        
+
+        # 添加组别信息到每条结果中
+        for result in session_data['survey_results'][topic_category][survey_type]:
+            result['group_assignment'] = group_assignment
+
         # --- 状态流转逻辑（容易出 500 的地方） ---
         if phase == 'pre_survey':
             session_data['current_phase'] = 'ai_chat'
@@ -1100,7 +1124,7 @@ def submit_survey():
             # 获取当前索引和顺序，增加默认值防止越界
             current_idx = session_data.get('current_topic_idx', 0)
             topic_order = session_data.get('topic_order', [])
-            
+
             # 判断是否还有下一个话题
             if current_idx + 1 < len(topic_order):
                 session_data['current_topic_idx'] = current_idx + 1
@@ -1108,18 +1132,18 @@ def submit_survey():
                 session_data['current_phase'] = 'transition' # 进入过渡页
             else:
                 session_data['current_phase'] = 'end' # 实验全部结束
-        
+
         # 保存 Session 和 磁盘备份
         save_session_data(session_data)
         try:
             auto_save_to_disk(get_session_id())
         except:
             pass # 即使写磁盘失败，也不要报 500
-        
+
         return jsonify({'success': True, 'redirect': '/experiment'})
 
     except Exception as e:
-        # 最后的兜底：哪怕上面全崩了，也给前端发一个“继续”指令
+        # 最后的兜底：哪怕上面全崩了，也给前端发一个"继续"指令
         print(f"CRITICAL ERROR: {e}")
         return jsonify({'success': True, 'redirect': '/experiment'})
 
@@ -1128,32 +1152,34 @@ def ai_start():
     """开始AI对话"""
     session_data = get_session_data()
     topic_category = session_data['current_topic_category']
+    group_assignment = session_data.get('group_assignment', 'control')  # 获取组别
+    
     # 修改：获取抽取的索引
     chosen_indices = session_data.get('subtopic_indices_map', {}).get(topic_category, [])
     current_ai_idx = session_data.get('ai_subtopic_idx', 0)
-    
+
     real_topic_id = chosen_indices[current_ai_idx]
     topics = TOPICS_CONFIG[topic_category]['topics']
     topic = topics[real_topic_id]
-    user_score = get_user_pre_score(session_data, topic_category, topic['id'])    
- 
+    user_score = get_user_pre_score(session_data, topic_category, topic['id'])
+
     # 【修正1：补全 build_messages 调用】
     # 构建初始对话消息列表
     left_messages = build_messages(topic, 'left', {}, None, user_score,is_initial=True)
     center_messages = build_messages(topic, 'center', {}, None,user_score, is_initial=True)
     right_messages = build_messages(topic, 'right', {}, None, user_score, is_initial=True)
-    
+
     with ThreadPoolExecutor(max_workers=3) as executor:
         # 提交三个任务
         future_left = executor.submit(call_deepseek_api, left_messages)
         future_center = executor.submit(call_deepseek_api, center_messages)
         future_right = executor.submit(call_deepseek_api, right_messages)
-        
+
         # 获取结果（会等待三个都完成，但总耗时大大缩短）
         left_response = future_left.result()
         center_response = future_center.result()
         right_response = future_right.result()
-    
+
     # 更新当前话题的历史（用于上下文）
     session_data['ai_history']['left'].append(left_response)
     session_data['ai_history']['center'].append(center_response)
@@ -1164,6 +1190,7 @@ def ai_start():
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     log_entry = {
         "session_id": get_session_id(),
+        "group_assignment": group_assignment,  # 记录组别
         "topic_category": topic_category,
         "question": topic['question'],
         "round": 0,
@@ -1174,11 +1201,11 @@ def ai_start():
         "timestamp": timestamp
     }
     session_data['full_chat_logs'].append(log_entry)
-    
+
     # 保存 Session 并触发硬盘自动保存
     save_session_data(session_data)
     auto_save_to_disk(get_session_id())
-    
+
     return jsonify({
         'success': True,
         'left_response': left_response,
@@ -1195,31 +1222,33 @@ def ai_send():
 
     if not user_message:
         return jsonify({'error': '消息不能为空'}), 400
-    
+
     session_data = get_session_data()
     topic_category = session_data['current_topic_category']
+    group_assignment = session_data.get('group_assignment', 'control')  # 获取组别
+    
     # 修改：获取抽取的索引
     chosen_indices = session_data.get('subtopic_indices_map', {}).get(topic_category, [])
     current_ai_idx = session_data.get('ai_subtopic_idx', 0)
-    
+
     real_topic_id = chosen_indices[current_ai_idx]
     topics = TOPICS_CONFIG[topic_category]['topics']
     topic = topics[real_topic_id]
     user_score = get_user_pre_score(session_data, topic_category, topic['id'])
-    
+
     history = session_data['ai_history']
     history['user'].append(user_message)
-    
+
     # 构建消息并调用API
     left_messages = build_messages(topic, 'left', history, user_message,user_score, is_initial=False)
     center_messages = build_messages(topic, 'center', history, user_message, user_score,is_initial=False)
     right_messages = build_messages(topic, 'right', history, user_message,user_score, is_initial=False)
-    
+
     with ThreadPoolExecutor(max_workers=3) as executor:
         future_left = executor.submit(call_deepseek_api, left_messages)
         future_center = executor.submit(call_deepseek_api, center_messages)
         future_right = executor.submit(call_deepseek_api, right_messages)
-        
+
         left_response = future_left.result()
         center_response = future_center.result()
         right_response = future_right.result()
@@ -1227,13 +1256,14 @@ def ai_send():
     history['left'].append(left_response)
     history['center'].append(center_response)
     history['right'].append(right_response)
-    
+
     # 记录到全局日志
     new_round = session_data['ai_round'] + 1
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
+
     log_entry = {
         "session_id": get_session_id(),
+        "group_assignment": group_assignment,  # 记录组别
         "topic_category": topic_category,
         "question": topic['question'],
         "round": new_round,
@@ -1244,16 +1274,16 @@ def ai_send():
         "timestamp": timestamp
     }
     session_data['full_chat_logs'].append(log_entry)
-    
+
     # 更新轮次
     session_data['ai_round'] = new_round
     session_data['ai_history'] = history
-    
+
     # 【修正2：补全逻辑判断】
     # 必须计算 is_finished 和 redirect，否则下面的 return 会报错
     is_finished = new_round >= MAX_ROUNDS
     redirect_url = None # 重命名变量避免混淆
-    
+
     if is_finished:
         chosen_indices = session_data.get('subtopic_indices_map', {}).get(topic_category, [])
         if current_ai_idx + 1 < len(chosen_indices):
@@ -1267,7 +1297,7 @@ def ai_send():
 
     save_session_data(session_data)
     auto_save_to_disk(get_session_id())
-    
+
     return jsonify({
         'success': True,
         'left_response': left_response,
@@ -1294,20 +1324,22 @@ def download_data():
     """下载实验数据 (ZIP格式：包含问卷数据和聊天记录)"""
     session_data = get_session_data()
     session_id = get_session_id()
+    group_assignment = session_data.get('group_assignment', 'control')  # 获取组别
     timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-    
+
     # 1. 准备问卷数据 CSV
     survey_buffer = StringIO()
     survey_buffer.write('\ufeff') # BOM
     writer = csv.writer(survey_buffer)
-    writer.writerow(['session_id', 'topic_category', 'survey_type', 'scale_name', 'question_id', 
+    writer.writerow(['session_id', 'group_assignment', 'topic_category', 'survey_type', 'scale_name', 'question_id',
                      'personal_score', 'timestamp', 'self_marked_pos', 'self_marked_percentile'])
-    
+
     for topic_category, results in session_data.get('survey_results', {}).items():
         for survey_type in ['pre', 'post']:
             for result in results.get(survey_type, []):
                 writer.writerow([
                     session_id,
+                    group_assignment,  # 添加组别
                     topic_category,
                     survey_type,
                     result.get('scale_name', ''),
@@ -1317,18 +1349,19 @@ def download_data():
                     result.get('self_marked_pos', ''),
                     result.get('self_marked_percentile', '')
                 ])
-    
+
     # 2. 准备聊天记录 CSV
     chat_buffer = StringIO()
     chat_buffer.write('\ufeff') # BOM
     chat_writer = csv.writer(chat_buffer)
-    chat_writer.writerow(['session_id', 'topic_category', 'question', 'round', 'user_input', 
+    chat_writer.writerow(['session_id', 'group_assignment', 'topic_category', 'question', 'round', 'user_input',
                           'left_response', 'center_response', 'right_response', 'timestamp'])
-    
+
     full_chat_logs = session_data.get('full_chat_logs', [])
     for log in full_chat_logs:
         chat_writer.writerow([
             log.get('session_id'),
+            log.get('group_assignment'),  # 添加组别
             log.get('topic_category'),
             log.get('question'),
             log.get('round'),
@@ -1346,11 +1379,11 @@ def download_data():
         zf.writestr(f"survey_data_{session_id}.csv", survey_buffer.getvalue().encode('utf-8'))
         # 写入聊天CSV
         zf.writestr(f"chat_logs_{session_id}.csv", chat_buffer.getvalue().encode('utf-8'))
-    
+
     memory_file.seek(0)
-    
-    filename = f"experiment_pack_{session_id}_{timestamp_str}.zip"
-    
+
+    filename = f"experiment_pack_{session_id}_{group_assignment}_{timestamp_str}.zip"
+
     return send_file(
         memory_file,
         mimetype='application/zip',
@@ -1360,12 +1393,12 @@ def download_data():
 
 with app.app_context():
     init_all_data()
-    
+
     # 诊断打印：确保启动时数据不是空的
     print(f"--- 启动数据校验 ---")
     print(f"QUESTIONNAIRE_LIBRARY 包含话题: {list(QUESTIONNAIRE_LIBRARY.keys())}")
     print(f"TOPICS_CONFIG 包含话题: {list(TOPICS_CONFIG.keys())}")
-    
+
     # 如果此时还是空的，强制解析一次 Excel
     if not QUESTIONNAIRE_LIBRARY or not TOPICS_CONFIG:
         print("警告：缓存为空，正在强制解析 Excel...")
@@ -1396,5 +1429,5 @@ print(f"初始化完成！当前可用主题: {list(QUESTIONNAIRE_LIBRARY.keys()
 
 # --- 启动块只保留运行命令 ---
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5003))
+    port = int(os.environ.get("PORT", 5001))
     app.run(debug=True, host='0.0.0.0', port=port)
