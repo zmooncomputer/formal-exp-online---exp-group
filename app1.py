@@ -34,6 +34,22 @@ TEMPERATURE = 0.6
 LOG_DIR = "experiment_logs_merged"
 # =========================================
 
+LOG_DIR = "experiment_logs_merged"
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+    
+@app.route('/')
+def index():
+    if 'user_id' not in session:
+        session['user_id'] = str(uuid.uuid4())
+    
+    # 核心修改：如果还没有组别，随机分配
+    if 'group' not in session:
+        # experimental: 实验组, control: 对照组
+        session['group'] = random.choice(['experimental', 'control'])
+        
+    return render_template('index.html') # 或者是你的跳转逻辑
+    
 app = Flask(__name__)
 app.secret_key = 'merged_experiment_secret_key' # 修改密钥
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -802,6 +818,7 @@ def get_session_data():
             'group_assignment': group_assignment  # 记录组别分配
         }
     return SERVER_SESSIONS[session_id]
+    
 
 def save_session_data(data):
     session_id = get_session_id()
@@ -941,20 +958,60 @@ def build_messages(topic, side, conversation_history, user_message, user_score, 
 
     return messages
 
+def save_log(user_id, data):
+    """保存实验数据到本地 JSON 文件，并自动标记组别"""
+    try:
+        # 确保日志目录存在
+        if not os.path.exists(LOG_DIR):
+            os.makedirs(LOG_DIR)
+
+        # 获取当前用户的组别（实验组或对照组）
+        # 这里从全局 SERVER_SESSIONS 中读取
+        session_info = SERVER_SESSIONS.get(user_id, {})
+        group_info = session_info.get('group_assignment', 'unknown')
+        
+        # 在数据内部打标签
+        data['group_assignment'] = group_info
+        data['user_id'] = user_id
+        data['save_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # 生成文件名：组别_用户ID_时间.json
+        filename = f"{group_info}_{user_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        filepath = os.path.join(LOG_DIR, filename)
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        
+        print(f"数据已成功保存至: {filepath}")
+        return True
+    except Exception as e:
+        print(f"保存文件时出错: {str(e)}")
+        return False
+        
 # ============================================================
 # 路由处理
 # ============================================================
 
 @app.route('/')
 def index():
-    """欢迎页"""
+    """欢迎页：初始化 ID 并分配实验组/对照组"""
+    if 'user_id' not in session:
+        session['user_id'] = str(uuid.uuid4())
+    
     session_data = get_session_data()
+    
+    # 核心：确保 group_assignment 被标记在 session 中
+    if 'group_assignment' not in session_data:
+        group = random.choice(['experimental', 'control'])
+        session_data['group_assignment'] = group
+    
     session_data['current_phase'] = 'welcome'
     save_session_data(session_data)
     
-    # 根据组别显示不同的欢迎页面
-    group = session_data.get('group_assignment', 'control')
-    return render_template('welcome.html', group=group)
+    # 将组别传给 session 以便 save_log 使用
+    session['group_assignment'] = session_data['group_assignment']
+    
+    return render_template('welcome.html', group=session['group_assignment'])
 
 @app.route('/start', methods=['POST'])
 def start():
@@ -1088,12 +1145,36 @@ def experiment():
     print(f"DEBUG: 未知的阶段 [{phase}]，执行兜底跳转")
     return render_template('welcome.html')
 
+def save_log(user_id, data):
+    """持久化保存函数：确保数据写入服务器磁盘并标记组别"""
+    try:
+        # 1. 确保目录存在
+        if not os.path.exists(LOG_DIR):
+            os.makedirs(LOG_DIR)
+        
+        # 2. 获取组别标记并注入数据内部
+        # 这里的 group_assignment 会被记入 JSON，方便后期分析
+        group_info = data.get('group_assignment', 'unknown')
+        data['final_save_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # 3. 构造文件名：组别_用户ID_时间.json
+        filename = f"{group_info}_{user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.json"
+        filepath = os.path.join(LOG_DIR, filename)
+
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=4)
+        print(f"数据成功上传至服务器路径: {filepath}")
+        return True
+    except Exception as e:
+        print(f"保存文件失败: {e}")
+        return False
+        
 @app.route('/api/survey/submit', methods=['POST'])
 def submit_survey():
     """提交问卷数据（增强容错版）"""
     try:
         data = request.json
-        # 获取 session 数据，如果失败则初始化为空字典
+        user_id = get_session_id()
         session_data = get_session_data() or {}
 
         # 使用 .get() 避免 KeyError 导致 500 错误
@@ -1125,15 +1206,15 @@ def submit_survey():
             current_idx = session_data.get('current_topic_idx', 0)
             topic_order = session_data.get('topic_order', [])
 
-            # 判断是否还有下一个话题
-            if current_idx + 1 < len(topic_order):
+           if current_idx + 1 >= len(topic_order):
+                session_data['current_phase'] = 'end'
+                save_log(user_id, session_data)
+            else:
+                # 还有下一个话题，进入过渡页
                 session_data['current_topic_idx'] = current_idx + 1
                 session_data['current_topic_category'] = topic_order[current_idx + 1]
-                session_data['current_phase'] = 'transition' # 进入过渡页
-            else:
-                session_data['current_phase'] = 'end' # 实验全部结束
-
-        # 保存 Session 和 磁盘备份
+                session_data['current_phase'] = 'transition'
+                     
         save_session_data(session_data)
         try:
             auto_save_to_disk(get_session_id())
