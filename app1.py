@@ -23,6 +23,7 @@ import pickle
 
 # =================配置区域=================
 # 请确保 Excel 文件路径正确
+app = Flask(__name__)
 CACHE_PATH = "topics_cache.pkl"
 QUESTION_CACHE_PATH = "questionnaire_cache.pkl"
 API_KEY = os.environ.get("DEEPSEEK_API_KEY", "sk-ff10a0a8c67e4901b1c41da5adfea3c8")  # Default to app2's key if not set
@@ -50,7 +51,6 @@ def index():
         
     return render_template('index.html') # 或者是你的跳转逻辑
     
-app = Flask(__name__)
 app.secret_key = 'merged_experiment_secret_key' # 修改密钥
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
