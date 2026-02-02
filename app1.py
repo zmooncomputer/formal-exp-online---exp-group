@@ -1164,22 +1164,22 @@ def ai_start():
 
     # 记录到全局日志 (Round 0 - 开场白)
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    log_entry = {
-        "session_id": get_session_id(),
-        "group": session_data.get('user_group', 'unknown'),
-        "topic_category": topic_category,
-        "question": topic['question'],
-        "round": 0,
-        "user_input": "", # 开场白用户无输入
-        "left_response": left_response,
-        "center_response": center_response,
-        "right_response": right_response,
-        "timestamp": timestamp
-    }
-    session_data['full_chat_logs'].append(log_entry)
-    
-    # 保存 Session 并触发硬盘自动保存
-    save_session_data(session_data)
+    # 在处理 AI 回复的路由（通常是 /chat 或类似接口）中修改
+log_entry = {
+    "session_id": get_session_id(),
+    "group": session_data.get('user_group', 'unknown'), # 标记组别
+    "topic_category": topic_category,
+    "phase": "ai_chat_start",
+    "round": 0,
+    "user_input": "[SYSTEM_INIT]", 
+    # 核心：记录开场时三个模型的文本
+    "left_response": left_response,   
+    "center_response": center_response,
+    "right_response": right_response,
+    "timestamp": timestamp
+}
+session_data['full_chat_logs'].append(log_entry)
+save_session_data(session_data)
     auto_save_to_disk(get_session_id())
     
     return jsonify({
@@ -1236,16 +1236,15 @@ def ai_send():
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     log_entry = {
-        "session_id": get_session_id(),
-        "topic_category": topic_category,
-        "question": topic['question'],
-        "round": new_round,
-        "user_input": user_message,
-        "left_response": left_response,
-        "center_response": center_response,
-        "right_response": right_response,
-        "timestamp": timestamp
-    }
+    "session_id": get_session_id(),
+    "group": session_data.get('user_group', 'unknown'),
+    "topic_category": topic_category,
+    "phase": "ai_chat_interaction",
+    "round": current_round,
+    "user_input": user_text, 
+    "ai_response": ai_reply,
+    "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+}
     session_data['full_chat_logs'].append(log_entry)
     
     # 更新轮次
