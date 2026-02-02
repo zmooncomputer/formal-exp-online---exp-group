@@ -944,11 +944,20 @@ def build_messages(topic, side, conversation_history, user_message, user_score, 
 
 @app.route('/')
 def index():
-    if 'user_id' not in session:
-        session['user_id'] = str(uuid.uuid4())
-        session['group'] = random.choice(['control', 'experimental'])
+    """欢迎页 - 增加随机分组逻辑"""
+    session_data = get_session_data()
     
-    return render_template('index.html')
+    # 1. 只有在第一次进入、没有分组时才进行分配
+    if 'user_group' not in session_data:
+        # random.choice 保证 1:1 的随机概率
+        session_data['user_group'] = random.choice(['treatment', 'control'])
+    
+    session_data['current_phase'] = 'welcome'
+    save_session_data(session_data)
+    
+    # 2. 恢复你原来的模板名称 welcome.html
+    # 并传入分配好的组别
+    return render_template('welcome.html', group=session_data['user_group'])
 
 @app.route('/start', methods=['POST'])
 def start():
