@@ -837,14 +837,14 @@ def call_deepseek_api(messages, temperature=None):
     try:
         if temperature is None:
             temperature = TEMPERATURE
-         = client.chat.completions.create(
+        response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,
             max_tokens=MAX_TOKENS,
             temperature=temperature,
             stream=False
         )
-        return .choices[0].message.content.strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"[ERROR] DeepSeek API调用失败: {str(e)}")
         return f"抱歉，AI生成遇到问题：{str(e)}"
@@ -882,9 +882,9 @@ def build_messages(topic, side, conversation_history, user_message, user_score, 
     # 2. 注入被试初始坐标描述
     # 这样 AI 一开始就知道被试是偏哪边的，不需要等被试开口
     score_info = ""
-    _median = topic.get('median', 4.0)
+    current_median = topic.get('median', 4.0)
     if user_score is not None:
-        pos = f"偏向【{left_label}】" if user_score < _median else (f"偏向【{right_label}】" if user_score > _median else "中立")
+        pos = f"偏向【{left_label}】" if user_score < current_median else (f"偏向【{right_label}】" if user_score > current_median else "中立")
         score_info = f"\n【被试初始立场背景】：该被试在前测中对此话题得分为 {user_score}/7，立场表现为：{pos}。"
 
     # 3. 组装 System Prompt (整合所有硬性约束)
@@ -952,7 +952,7 @@ def build_messages(topic, side, conversation_history, user_message, user_score, 
 def index():
     """欢迎页"""
     session_data = get_session_data()
-    session_data['_phase'] = 'welcome'
+    session_data['current_phase'] = 'welcome'
     save_session_data(session_data)
 
     # 根据组别显示不同的欢迎页面
@@ -971,20 +971,20 @@ def start():
     # 根据组别选择话题配置
     group = session_data.get('group_assignment', 'exp')
     if group == 'exp':
-        _topics_config = EXP_TOPICS_CONFIG
+        current_topics_config = EXP_TOPICS_CONFIG
     else:
-        _topics_config = CTRL_TOPICS_CONFIG
+        current_topics_config = CTRL_TOPICS_CONFIG
 
     if not TOPICS_CONFIG:
         TOPICS_CONFIG = load_big_topics_from_excel()
 
-    topic_categories = list(_topics_config.keys())
+    topic_categories = list(current_topics_config.keys())
     random.shuffle(topic_categories)
 
     # --- 新增：为每个大话题随机抽取3个子题索引 ---
     subtopic_indices = {}
     for cat in topic_categories:
-        total_sub = len(_topics_config[cat]['topics'])
+        total_sub = len(current_topics_config[cat]['topics'])
         # 如果子题少于3个则全选，否则随机抽3个并排序以保持逻辑连续性
         sample_size = min(3, total_sub)
         indices = random.sample(range(total_sub), sample_size)
@@ -995,8 +995,8 @@ def start():
     # ------------------------------------------
 
     session_data['topic_order'] = topic_categories
-    session_data['_topic_idx'] = 0
-    session_data['_phase'] = 'pre_survey'
+    session_data['current_topic_idx'] = 0
+    session_data['current_phase'] = 'pre_survey'
     session_data['current_topic_category'] = topic_categories[0]
     session_data['ai_subtopic_idx'] = 0 # 这里的 idx 现在对应 indices 列表的索引
     save_session_data(session_data)
@@ -1062,7 +1062,7 @@ def experiment():
                                  total_topics=len(session_data['topic_order']),
                                  is_control=True)
 
-    elif phase == 'ai_':
+    elif phase == 'ai_chat':
         # 同样对 AI 阶段的主题进行清洗
         topic_category = str(session_data['current_topic_category']).strip().replace('"', '').replace("'", "")
 
