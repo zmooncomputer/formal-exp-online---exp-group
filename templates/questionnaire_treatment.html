@@ -59,6 +59,9 @@
         </div>
         
         <div id="baro-slider-area" class="text-center" style="margin-top: 20px;">
+            <p id="baro-instruction" style="color: var(--secondary); font-weight: bold; margin-bottom: 15px; padding: 0 10px; line-height: 1.5;">
+                现在展示的是中国整体人群的意见分布图，请拖动圆点，预测你自己在人群中所处的位置。
+            </p>
             <input type="range" id="baro-slider" style="width:100%" step="0.01" oninput="exp.updateBarometer(this.value)">
             <p>您当前预测：全国前 <b id="baro-percentile" style="color:#e74c3c;"></b></p>
         </div>
@@ -166,6 +169,8 @@ class Experiment {
     initBarometer() {
         this.baroState = 'guessing';
         this.showView('view-barometer');
+        const instruction = document.getElementById('baro-instruction');
+        if(instruction) instruction.classList.remove('hidden');
         const qData = this.data[this.currentScaleName][0];
         this.currentEvalConfig = qData.eval_config;
         document.getElementById('baro-title').innerText = "📍 " + this.currentScaleName + " · 位置对比";
@@ -249,6 +254,9 @@ class Experiment {
     handleBarometerConfirmation() {
         if(this.baroState === 'guessing') {
             this.baroState = 'revealed';
+
+            const instruction = document.getElementById('baro-instruction');
+            if(instruction) instruction.classList.add('hidden');
             
             // ================= 核心修改：真实反馈逻辑 =================
             
