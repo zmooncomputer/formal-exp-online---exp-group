@@ -60,12 +60,16 @@
         
         <div id="baro-slider-area" class="text-center" style="margin-top: 20px;">
             <p id="baro-instruction" style="color: var(--secondary); font-weight: bold; margin-bottom: 15px; padding: 0 10px; line-height: 1.5;">
-                现在展示的是中国整体人群的意见分布图，请拖动圆点，预测你自己在人群中所处的位置。
+                现在展示的是中国整体人群的意见分布图，请<span style="color: #e74c3c;">拖动圆点</span>，预测你自己在人群中所处的位置。
             </p>
             <input type="range" id="baro-slider" style="width:100%" step="0.01" oninput="exp.updateBarometer(this.value)">
             <p>您当前预测：全国前 <b id="baro-percentile" style="color:#e74c3c;"></b></p>
         </div>
 
+        <div class="text-center">
+            <button id="btn-baro-confirm" class="btn btn-primary" onclick="exp.handleBarometerConfirmation()" disabled style="opacity: 0.5; cursor: not-allowed;">确认位置</button>
+        </div>
+        
         <div id="baro-truth-feedback" class="hidden">
             <div class="baro-feedback-container">
                 <div class="feedback-card card-predict">
@@ -171,6 +175,10 @@ class Experiment {
         this.showView('view-barometer');
         const instruction = document.getElementById('baro-instruction');
         if(instruction) instruction.classList.remove('hidden');
+        const btn = document.getElementById('btn-baro-confirm');
+        btn.disabled = true;
+        btn.style.opacity = "0.5";
+        btn.style.cursor = "not-allowed";
         const qData = this.data[this.currentScaleName][0];
         this.currentEvalConfig = qData.eval_config;
         document.getElementById('baro-title').innerText = "📍 " + this.currentScaleName + " · 位置对比";
@@ -239,7 +247,16 @@ class Experiment {
             // 在揭晓状态，显示存储的真实分数
             drawMarker(this.actualScore, '#3498db', "实际位置", true);
         }
-
+        
+        if (this.baroState === 'guessing') {
+            const btn = document.getElementById('btn-baro-confirm');
+            if (btn) {
+                btn.disabled = false;           // 解除禁用状态
+                btn.style.opacity = "1";        // 恢复不透明度
+                btn.style.cursor = "pointer";   // 恢复手型指针
+            }
+        }
+        
         const pct = (this.currentRawScores.filter(s => s < val).length / this.currentRawScores.length * 100).toFixed(1);
         document.getElementById('baro-percentile').innerText = pct + '%';
         this.currentBaroVal = val; this.currentBaroPct = pct;
