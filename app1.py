@@ -38,7 +38,11 @@ app = Flask(__name__)
 app.secret_key = 'merged_experiment_secret_key'  # 新的密钥
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 
-client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
+client = None
+if API_KEY:
+    client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
+else:
+    print("警告: DEEPSEEK_API_KEY 环境变量未设置，AI对话功能将不可用。")
 SERVER_SESSIONS = {}
 
 # 实验组话题配置
@@ -835,6 +839,8 @@ def get_questionnaire_data():
 
 def call_deepseek_api(messages, temperature=None):
     try:
+        if client is None:
+            return "抱歉，AI服务未配置（API Key缺失），请联系实验负责人。"
         if temperature is None:
             temperature = TEMPERATURE
         response = client.chat.completions.create(
@@ -967,9 +973,9 @@ def index():
     save_session_data(session_data)
     
     if group == 'exp':
-        return render_template('welcome.html', group='experimental_real')
+        return render_template('welcome.html', group='experimental_real', group_code='exp')
     else:
-        return render_template('welcome.html', group='experimental')
+        return render_template('welcome.html', group='experimental', group_code='ctrl')
 
 @app.route('/start', methods=['POST'])
 def start():
@@ -1009,7 +1015,7 @@ def start():
     session_data['current_topic_category'] = topic_categories[0]
     session_data['ai_subtopic_idx'] = 0 # 这里的 idx 现在对应 indices 列表的索引
     save_session_data(session_data)
-    return jsonify({'success': True, 'redirect': '/experiment'})
+    return jsonify({'success': True, 'redirect': '/experiment', 'group': group})
 
 @app.route('/experiment')
 def experiment():
@@ -1103,12 +1109,15 @@ def experiment():
                              total_topics=len(session_data['topic_order']))
     elif phase == 'transition':
         # 话题切换的过渡页面
-           return render_template('transition.html',
-                             next_topic_idx=session_data.get('current_topic_idx', 0) + 1)
+        next_topic_name = session_data.get('current_topic_category', '下一个话题')
+        return render_template('transition.html',
+                             next_topic_idx=session_data.get('current_topic_idx', 0) + 1,
+                             next_topic_name=next_topic_name)
 
     elif phase == 'end':
         # 实验圆满结束页面
-           return render_template('end.html')
+        group_label = '实验组(A组)' if group == 'exp' else '对照组(B组)'
+        return render_template('end.html', group=group, group_label=group_label)
 
     # --- 终极修复：万能兜底 ---
     # 如果以上所有条件都不满足（例如 phase 是 welcome 或者 None），返回欢迎页或首页
