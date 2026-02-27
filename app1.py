@@ -564,12 +564,12 @@ EXP_TOPICS_CONFIG = {
 }
 
 # 使用实验组话题配置作为对照组配置
-CTRL_TOPICS_CONFIG = EXP_TOPICS_CONFIG
+CTRL_TOPICS_CONFIG = STATIC_TOPICS_DATA
 
 # 将第一步生成的巨大字典粘贴在这里
 STATIC_TOPICS_DATA = {
-    "1环境保护": {
-        "id": "1环境保护",
+    "环境保护": {
+        "id": "环境保护",
         "topics": [
             {
                 "id": 0,
@@ -621,8 +621,8 @@ STATIC_TOPICS_DATA = {
             }
         ]
     },
-    "2社区参与": {
-        "id": "2社区参与",
+    "社区参与": {
+        "id": "社区参与",
         "topics": [
             {
                 "id": 0,
@@ -662,8 +662,8 @@ STATIC_TOPICS_DATA = {
             }
         ]
     },
-    "3法治观念": {
-        "id": "3法治观念",
+    "法治观念": {
+        "id": "法治观念",
         "topics": [
             {
                 "id": 0,
