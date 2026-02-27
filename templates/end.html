@@ -45,8 +45,12 @@ async function submitToFormspark() {
     }
 
     // 2. 数据处理
+    const serverGroup = "{{ group }}";
+    const serverGroupLabel = "{{ group_label }}";
     const payload = {
         participant_id: rawData.participant_id || "未知用户",
+        group: rawData.group || serverGroup || "unknown",
+        group_label: serverGroupLabel || (rawData.group === 'exp' ? '实验组(A组)' : '对照组(B组)'),
         start_time: rawData.start_time,
         end_time: new Date().toLocaleString(),
     };

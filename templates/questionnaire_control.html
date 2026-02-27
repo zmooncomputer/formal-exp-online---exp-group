@@ -300,16 +300,48 @@ class Experiment {
     }
 
     async submitSurvey() {
+        // --- 1. 保存到本地全量仓库（与实验组一致） ---
+        try {
+            let allData = JSON.parse(localStorage.getItem('all_exp_data') || '{}');
+            const topicName = "{{ topic_category }}"; 
+            
+            if (!allData.topics_data) allData.topics_data = {};
+            if (!allData.topics_data[topicName]) allData.topics_data[topicName] = {};
+
+            if (!allData.topics_data[topicName].pre_survey) {
+                allData.topics_data[topicName].pre_survey = this.results;
+                console.log(`[对照组] 已缓存 ${topicName} 的前测数据`);
+            } else {
+                allData.topics_data[topicName].post_survey = this.results;
+                console.log(`[对照组] 已缓存 ${topicName} 的后测数据`);
+            }
+            localStorage.setItem('all_exp_data', JSON.stringify(allData));
+        } catch (e) {
+            console.error("本地缓存保存失败:", e);
+        }
+
+        // --- 2. 提交后端并跳转 ---
         fetch('/api/survey/submit', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({results: this.results})
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                console.warn("后端 500 错误，执行强制跳转方案");
+                window.location.href = '/experiment';
+                return;
+            }
+            return response.json();
+        })
         .then(data => {
-            if (data.success) {
+            if (data && data.success) {
                 window.location.href = data.redirect || '/experiment';
             }
+        })
+        .catch(err => {
+            console.error("提交异常:", err);
+            window.location.href = '/experiment';
         });
     }
 }

@@ -1,14 +1,3 @@
-<script>
-document.getElementById('startForm').onsubmit = function() {
-    const experimentData = {
-        participant_id: "user_" + Math.random().toString(36).substr(2, 9),
-        start_time: new Date().toLocaleString(),
-        topics_data: {} // 用于按话题存储数据
-    };
-    localStorage.setItem('all_exp_data', JSON.stringify(experimentData));
-};
-</script>
-
 {% extends "layout.html" %}
 
 {% block content %}
@@ -38,6 +27,16 @@ document.getElementById('startForm').onsubmit = function() {
 <script>
 document.getElementById('startForm').addEventListener('submit', function(e) {
     e.preventDefault();
+
+    // 初始化 localStorage 数据仓库（含组别标识）
+    const experimentData = {
+        participant_id: "user_" + Math.random().toString(36).substr(2, 9),
+        start_time: new Date().toLocaleString(),
+        group: "{{ group_code }}",
+        topics_data: {}
+    };
+    localStorage.setItem('all_exp_data', JSON.stringify(experimentData));
+
     fetch('/start', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
