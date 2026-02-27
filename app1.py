@@ -952,11 +952,20 @@ def build_messages(topic, side, conversation_history, user_message, user_score, 
 def index():
     """欢迎页"""
     session_data = get_session_data()
+    
+    # 核心修改：如果 session 记录中没有组别，才进行随机分配
+    if 'group_assignment' not in session_data:
+        # 随机分配组别：'exp' 代表实验组，'ctrl' 代表对照组
+        group = random.choice(['exp', 'ctrl'])
+        session_data['group_assignment'] = group
+        session_data['user_id'] = str(uuid.uuid4())[:8] # 显式生成并存入 session_data
+        print(f"新用户初始化: ID={session_data['user_id']}, 分组={group}")
+    else:
+        group = session_data['group_assignment']
+
     session_data['current_phase'] = 'welcome'
     save_session_data(session_data)
-
-    # 根据组别显示不同的欢迎页面
-    group = session_data.get('group_assignment', 'exp')
+    
     if group == 'exp':
         return render_template('welcome.html', group='experimental_real')
     else:
@@ -1009,7 +1018,7 @@ def experiment():
     phase = session_data.get('current_phase', 'welcome')
 
     # 获取组别
-    group = session_data.get('group_assignment', 'exp')
+    group = session_data.get('group_assignment')
 
     # 诊断 1: 打印 session 里存的原始值
     raw_category = session_data.get('current_topic_category', '')
@@ -1167,7 +1176,7 @@ def ai_start():
     topic_category = session_data['current_topic_category']
 
     # 根据组别选择话题配置
-    group = session_data.get('group_assignment', 'exp')
+    group = session_data.get('group_assignment')
     if group == 'exp':
         current_topics_config = EXP_TOPICS_CONFIG
     else:
@@ -1246,7 +1255,7 @@ def ai_send():
     topic_category = session_data['current_topic_category']
 
     # 根据组别选择话题配置
-    group = session_data.get('group_assignment', 'exp')
+    group = session_data.get('group_assignment')
     if group == 'exp':
         current_topics_config = EXP_TOPICS_CONFIG
     else:
