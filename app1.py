@@ -43,7 +43,7 @@ SERVER_SESSIONS = {}
 
 # 实验组话题配置
 EXP_TOPICS_CONFIG = {
-    "法治观念": {
+    "3法治观念": {
         "id": "rule_of_law",
         "topics": [
             {
@@ -216,7 +216,7 @@ EXP_TOPICS_CONFIG = {
             }
         ]
     },
-    "环境保护": {
+    "1环境保护": {
         "id": "environment",
         "topics": [
             {
@@ -389,7 +389,7 @@ EXP_TOPICS_CONFIG = {
             }
         ]
     },
-    "社区参与": {
+    "2社区参与": {
         "id": "community",
         "topics": [
             {
@@ -568,8 +568,8 @@ CTRL_TOPICS_CONFIG = EXP_TOPICS_CONFIG
 
 # 将第一步生成的巨大字典粘贴在这里
 STATIC_TOPICS_DATA = {
-    "环境保护": {
-        "id": "环境保护",
+    "1环境保护": {
+        "id": "1环境保护",
         "topics": [
             {
                 "id": 0,
@@ -621,8 +621,8 @@ STATIC_TOPICS_DATA = {
             }
         ]
     },
-    "社区参与": {
-        "id": "社区参与",
+    "2社区参与": {
+        "id": "2社区参与",
         "topics": [
             {
                 "id": 0,
@@ -662,8 +662,8 @@ STATIC_TOPICS_DATA = {
             }
         ]
     },
-    "法治观念": {
-        "id": "法治观念",
+    "3法治观念": {
+        "id": "3法治观念",
         "topics": [
             {
                 "id": 0,
