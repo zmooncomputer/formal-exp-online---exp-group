@@ -263,10 +263,24 @@ class Experiment {
     }
 
     calculateActualScore() {
-        // 计算当前 Scale 的平均分
-        const scores = this.results.filter(r => r.scale_name === this.currentScaleName).map(r => r.personal_score);
-        return scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+    const scores = this.results
+        .filter(r => r.scale_name === this.currentScaleName)
+        .map(r => r.personal_score);
+
+    if (!scores.length) return 0;
+
+
+    if (String(this.currentScaleName).includes("社区参与")) {
+        const s1 = scores[0] ?? 0;
+        const s2 = scores[1] ?? 0;
+        const s3 = scores[2] ?? 0;
+        return s1 - s2 - s3;
     }
+
+    // 规则2：其他维度不变（仍然取平均分）
+    return scores.reduce((a, b) => a + b, 0) / scores.length;
+}
+
 
     handleBarometerConfirmation() {
         if(this.baroState === 'guessing') {
